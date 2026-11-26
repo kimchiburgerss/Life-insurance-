@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { requireOperator } from "@/lib/auth/session";
+import { prisma } from "@/lib/db";
 import { Badge } from "@/components/ui";
 import { SignOutButton } from "./sign-out-button";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const operator = await requireOperator("case:read");
   const mock = (process.env.MOCK_MODE ?? "true") === "true";
+  const unread = await prisma.notification.count({ where: { userId: operator.id, readAt: null } });
   return (
     <div className="min-h-screen">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:bg-white focus:p-2">
@@ -29,6 +31,9 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             <Link href="/review" className="hover:underline">
               Review queue
             </Link>
+            <Link href="/calendar" className="hover:underline">
+              Calendar
+            </Link>
             <Link href="/imports" className="hover:underline">
               Imports
             </Link>
@@ -43,6 +48,9 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           </nav>
           <div className="ml-auto flex items-center gap-3 text-sm">
             {mock ? <Badge tone="warn">Mock mode</Badge> : null}
+            <Link href="/notifications" className="hover:underline" aria-label={`Notifications, ${unread} unread`}>
+              Notifications{unread > 0 ? <span className="ml-1 rounded-full bg-red-700 px-1.5 text-xs text-white">{unread}</span> : null}
+            </Link>
             <span>
               {operator.name} <span className="text-slate-500">({operator.role.toLowerCase()})</span>
             </span>

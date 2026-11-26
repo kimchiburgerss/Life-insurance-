@@ -4,7 +4,7 @@ An operator console that lets one person do the research, matching, drafting
 and case management of a small heir-finding firm. A human stays in the loop for
 every outbound contact and every legal document.
 
-> **Status: Phase 2 (Ingestion & Screening) complete.** See [Build phases](#build-phases).
+> **Status: Phase 3 (Research) complete.** See [Build phases](#build-phases).
 > Compliance rules and where they are enforced: [COMPLIANCE.md](COMPLIANCE.md).
 > Security controls: [SECURITY.md](SECURITY.md).
 
@@ -61,7 +61,7 @@ docker compose --profile app up --build   # Postgres + migrations/seed + app on 
 | `npm run test:unit` | Pure logic: dates, rules, state machine, crypto (no database) |
 | `npm run test:integration` | Against `*_test` database: audit log, transitions, rules, auth |
 | `npm run test:e2e` | Playwright: login + 2FA, enrollment, roles, rule verification (needs a seeded DB) |
-| `npm run evals` | AI eval suites in `/evals` (first suite arrives in Phase 3) |
+| `npm run evals` | AI eval suites in `/evals`: scores the rule-based baseline for free. `EVAL_LIVE=1 npm run evals` scores Claude with the current prompt (needs `ANTHROPIC_API_KEY`; costs money, prints the total) |
 | `npm run db:migrate` | Apply migrations (`prisma migrate deploy`) |
 | `npm run db:seed` | Seed jurisdiction rules, plus fake demo data unless `SEED_DEMO=false` or production |
 | `npm run db:reset` | Drop, re-migrate and re-seed the dev database (destructive) |
@@ -79,7 +79,7 @@ docker compose --profile app up --build   # Postgres + migrations/seed + app on 
 | Jobs | **pg-boss 12** (Postgres-backed, no Redis) | Imports and nightly re-scoring. The worker runs inside the web process (started from `instrumentation.ts` in production, on first enqueue in dev), so one container is enough. Set `RUN_JOBS=false` on extra web instances |
 | File parsing | **papaparse** (CSV/TSV) + **read-excel-file** (XLSX) | The npm `xlsx` package (SheetJS 0.18.5) has unpatched advisories and `exceljs` is unmaintained, so neither is used. Old `.xls` files are rejected (save as `.xlsx`) |
 | Tests | Vitest 5 (unit + integration projects), Playwright 1.63 | |
-| AI | Anthropic Claude via the official SDK | Phase 3 |
+| AI | **Claude Opus 5.5** (`claude-opus-5-5`) via the official `@anthropic-ai/sdk` | Structured outputs validated with Zod (one retry on invalid output), server-side refusal fallbacks on, effort set per task (extraction `low`, summaries `medium`), prompt caching on system prompts. Every call is logged as an `AiRun` with prompt version, input hash, redacted input, tokens and cost. Override the model with `AI_MODEL` |
 | Integrations | Adapter interfaces + mocks (mail, email, e-sign, payments, people-search, obituary) | Phases 3–6. `MOCK_MODE=true` by default |
 
 ## Project structure
@@ -95,18 +95,22 @@ lib/
   match/        Owner matching: Jaro-Winkler, Soundex blocking keys, nicknames, decision thresholds
   import/       Upload → mapping → background processing → review-queue decisions
   screening/    Explainable priority score + expected value; re-scoring
-  jobs/         pg-boss queue + worker
+  jobs/         pg-boss queue + worker (imports, nightly re-scoring, waiting-period unlocks)
+  ai/           Prompt loader, Claude provider, runPrompt (redact → structured output → AiRun), pricing, acceptance
+  research/     Obituary extraction, death-match confidence, NV intestate helper, research service
+adapters/       death-records, people-search (interface + mock each; real vendors added when contracted)
+prompts/        Versioned AI prompts (front-matter header: name, version, effort)
   crypto/       PII encryption + SSN redaction
   audit.ts      Append-only audit writer (redacts PII)
   dates.ts      UTC calendar-date math for legal deadlines
 prisma/         schema, migrations (incl. audit-log trigger), seed
 tests/          unit/, integration/, e2e/, helpers/
-evals/          AI evaluation fixtures (Phase 3+)
+evals/          AI eval suites (obituary-extraction: 20 fictional obituaries + scorer)
 demo/           FICTIONAL sample Nevada export for trying the import flow
 scripts/        demo, demo:totp, user:create, evals runner
 ```
 
-Coming in later phases: `/adapters`, `/prompts`, `/templates`, `OPERATIONS.md`,
+Coming in later phases: `/templates`, mail/email/e-sign/payment adapters, `OPERATIONS.md`,
 `PRIVACY_POLICY_DRAFT.md`.
 
 ## Importing a Nevada list
@@ -123,6 +127,22 @@ Coming in later phases: `/adapters`, `/prompts`, `/templates`, `OPERATIONS.md`,
 
 Try it with the fictional `demo/sample-nevada-export.csv` (see `demo/README.md` for what each row tests).
 
+## Researching a case
+
+1. **Death verification & sources:** search the configured death-record sources, or paste an obituary
+   (and its link). Click **Extract facts with AI**: the suggestion shows the deceased's details, an
+   *Is this our owner?* confidence with reasons, and every named relative with the exact quote it came
+   from. Tick the relatives to add, confirm it's the owner, and **Accept** — or reject it.
+2. **Family & heirs:** the tree and the *who likely has a claim* table (Nevada rules, research aid only)
+   update as you confirm people, mark who died first, and link grandchildren/nieces/nephews to their
+   parent. Possible duplicates are listed for you to merge; nothing merges on its own.
+3. **Contact details:** run the people-search lookup (confirm the permissible purpose) or type them in.
+   They're stored encrypted with a record of where they came from.
+4. **Research summary:** ask the AI what's known, what's uncertain and the next best step.
+5. **Heirs identified:** the case moves itself to the waiting period (or straight to outreach when the
+   24 months are over). The nightly job unlocks it on its date and notifies you — see **Calendar** and
+   **Notifications**.
+
 ## Deployment (summary; full guide in Phase 7)
 
 - Any host that runs a Docker image and offers managed Postgres works (Render,
@@ -138,7 +158,7 @@ Try it with the fictional `demo/sample-nevada-export.csv` (see `demo/README.md` 
 
 1. **Foundation**: done. Repo, Docker, Postgres + Prisma schema for every model, auth with mandatory TOTP and roles, append-only audit log, Nevada jurisdiction rules engine, case state machine with compliance guards, fake seed/demo data, CI.
 2. **Ingestion & screening**: done. CSV/XLSX upload (up to 50 MB) with auto-suggested, saveable column mapping and a live preview; name/address/date/amount normalization; de-duplication by state property ID; fuzzy owner grouping with a human review queue; explainable 0–100 priority score with expected value; screening queue with bulk actions; pipeline board with filters and search; case page with rule-checked stage moves and timeline.
-3. Research: death verification, obituary extraction with evals, family tree, heir candidates, research summaries, waiting-period manager.
+3. **Research**: done. Death-record source adapter (demo source; licensed vendors plug in), evidence with citations, AI obituary extraction (suggestion → human accept) with an "is this our owner?" confidence breakdown, family tree, Nevada intestate helper (research aid), heir candidates with duplicate review, people-search adapter with permissible-purpose confirmation and encrypted contact storage, AI research summaries and tracing-difficulty estimates (feed the score), AI cost per case, waiting-period auto-advance, nightly unlock job with notifications, calendar.
 4. Outreach: templates, AI personalization, tone/lint checks, approval queue, mail/email adapters, follow-ups, do-not-contact.
 5. Agreements & portal: agreement generation with validation, e-sign adapter, heir portal with document upload.
 6. Claims & billing: claim packet builder, document-review AI, Stripe invoicing, revenue metrics.

@@ -73,12 +73,32 @@ export const ClaimRequirementsParams = z.object({
 });
 export type ClaimRequirementsParams = z.infer<typeof ClaimRequirementsParams>;
 
+/** [numerator, denominator] — exact shares, no floating point. */
+export const Fraction = z.tuple([z.number().int().min(0), z.number().int().positive()]);
+
+export const IntestateSuccessionParams = z.object({
+  /** How a deceased child's/sibling's share passes to their descendants. */
+  representation: z.enum(["PER_STIRPES"]).default("PER_STIRPES"),
+  /** Spouse's share of SEPARATE property when the decedent left issue. */
+  spouseWithIssue: z.object({ oneChildLine: Fraction, multipleChildLines: Fraction }),
+  /** Spouse's share when there is no issue, by the first class that exists (the rest goes to that class). */
+  spouseNoIssue: z.array(z.object({ withClass: z.enum(["PARENTS", "SIBLINGS"]), spouse: Fraction })),
+  /** Who takes, in order, when there is no surviving spouse. */
+  noSpouseOrder: z.array(z.enum(["ISSUE", "PARENTS", "SIBLINGS", "GRANDPARENTS", "OTHER_KIN"])).min(1),
+  /** Community property passes entirely to the surviving spouse. */
+  communityPropertyToSpouse: z.boolean(),
+  /** A living named beneficiary takes before intestate heirs (contract, not estate). */
+  namedBeneficiaryFirst: z.boolean(),
+});
+export type IntestateSuccessionParams = z.infer<typeof IntestateSuccessionParams>;
+
 export const RuleParamsSchemas = {
   WAITING_PERIOD: WaitingPeriodParams,
   FEE_CAP: FeeCapParams,
   DISCLOSURE_TEXT: DisclosureTextParams,
   AGREEMENT_REQUIREMENTS: AgreementRequirementsParams,
   CLAIM_REQUIREMENTS: ClaimRequirementsParams,
+  INTESTATE_SUCCESSION: IntestateSuccessionParams,
 } as const satisfies Record<RuleType, z.ZodType>;
 
 export type RuleParamsFor<T extends RuleType> = z.infer<(typeof RuleParamsSchemas)[T]>;

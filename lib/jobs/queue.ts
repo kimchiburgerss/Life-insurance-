@@ -11,6 +11,8 @@ export const QUEUES = {
   import: "import-process",
   /** Nightly: scores and eligibility depend on today's date. */
   rescore: "cases-rescore",
+  /** Nightly: move cases out of the 24-month waiting period on their eligible date. */
+  unlock: "waiting-period-unlock",
 } as const;
 
 const globalForBoss = globalThis as unknown as { boss?: Promise<PgBoss> };

@@ -2,7 +2,7 @@ import "server-only";
 import type { DbClient } from "@/lib/db";
 import { todayIn } from "@/lib/dates";
 import { getActiveRule } from "@/lib/rules/repository";
-import { scoreCase, type ScoringProperty } from "./score";
+import { scoreCase, type ScoringProperty, type TracingAssessment } from "./score";
 
 type StoredAddress = { line1?: string | null; zip5?: string | null; state?: string | null; postalCode?: string | null };
 
@@ -35,6 +35,7 @@ export async function rescoreCases(db: DbClient, caseIds: string[], today: Date 
       select: {
         id: true,
         stateCode: true,
+        tracingAssessment: true,
         owner: { select: { normalizedName: true, lastKnownAddresses: true } },
         properties: {
           select: {
@@ -62,6 +63,7 @@ export async function rescoreCases(db: DbClient, caseIds: string[], today: Date 
         },
         rulesByState.get(c.stateCode)!,
         today,
+        (c.tracingAssessment as TracingAssessment | null) ?? null,
       );
       await db.case.update({
         where: { id: c.id },

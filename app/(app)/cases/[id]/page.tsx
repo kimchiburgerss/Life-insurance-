@@ -9,6 +9,14 @@ import { previewTransitions } from "@/lib/case/transitions";
 import { prisma } from "@/lib/db";
 import { formatDateOnly } from "@/lib/dates";
 import { caseRef, formatPct, formatUsd, scoreTone } from "@/lib/format";
+import { formatMicros } from "@/lib/ai/pricing";
+import { suggestIntestateHeirs } from "@/lib/research/intestate";
+import { ObituaryExtraction, quoteAppears } from "@/lib/research/obituary";
+import { assessExtraction, caseAiCostMicros, possibleDuplicates, ResearchSummary, TracingEstimate } from "@/lib/research/service";
+import { getActiveRule } from "@/lib/rules/repository";
+import { todayIn } from "@/lib/dates";
+import { FamilyTree } from "./family-tree";
+import { EvidencePanel, ExtractionReview, PeoplePanel, SummaryPanel, TracingPanel } from "./research-panels";
 import { TransitionPanel } from "./transition-panel";
 
 export const metadata: Metadata = { title: "Case" };
@@ -26,10 +34,55 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
     },
   });
   if (!c) notFound();
-  const [preview, timeline] = await Promise.all([
+  const canWrite = can(operator.role, "case:write");
+  const [preview, timeline, evidence, persons, aiRuns, duplicates, aiCost, intestateRule] = await Promise.all([
     previewTransitions(c.id, operator.role),
     prisma.auditLog.findMany({ where: { entityType: "Case", entityId: c.id }, orderBy: { id: "desc" }, take: 50 }),
+    prisma.evidence.findMany({ where: { caseId: c.id }, orderBy: { createdAt: "asc" } }),
+    prisma.person.findMany({ where: { caseId: c.id }, orderBy: [{ relationship: "asc" }, { fullName: "asc" }] }),
+    prisma.aiRun.findMany({ where: { caseId: c.id, status: "SUCCEEDED" }, orderBy: { createdAt: "desc" }, take: 50 }),
+    possibleDuplicates(c.id),
+    caseAiCostMicros(c.id),
+    getActiveRule(prisma, c.stateCode, "INTESTATE_SUCCESSION", todayIn()).catch(() => null),
   ]);
+  const pendingExtractions = aiRuns.filter((r) => r.promptName === "obituary-extraction" && r.acceptance === "PENDING");
+  const reviews = await Promise.all(
+    pendingExtractions.map(async (r) => {
+      const output = ObituaryExtraction.parse(r.output);
+      const ev = evidence.find((e) => e.id === r.entityId);
+      return {
+        runId: r.id,
+        model: r.model,
+        evidenceTitle: ev?.title ?? "source",
+        output,
+        match: await assessExtraction(c.id, output),
+        quoteFound: output.relatives.map((x) => quoteAppears(x.evidenceQuote, ev?.rawText ?? "")),
+      };
+    }),
+  );
+  const latestSummary = aiRuns.find((r) => r.promptName === "research-summary" && r.acceptance !== "REJECTED");
+  const pendingTracing = aiRuns.find((r) => r.promptName === "tracing-difficulty" && r.acceptance === "PENDING");
+  const accepted = c.tracingAssessment as { difficulty: number; rationale: string } | null;
+  const intestate = intestateRule
+    ? suggestIntestateHeirs(
+        persons.map((p) => ({ id: p.id, name: p.fullName, relationship: p.relationship, isPredeceased: p.isPredeceased, rejected: p.status === "REJECTED", parentPersonId: p.parentPersonId })),
+        intestateRule.params,
+      )
+    : null;
+  const personRows = persons.map((p) => ({
+    id: p.id,
+    fullName: p.fullName,
+    relationship: p.relationship,
+    status: p.status,
+    isPredeceased: p.isPredeceased,
+    confidence: p.relationshipConfidence,
+    parentPersonId: p.parentPersonId,
+    sources: p.sourceEvidenceIds.length,
+    notes: p.notes,
+    hasAddress: Boolean(p.mailingAddressEnc),
+    hasEmail: Boolean(p.emailEnc),
+    hasPhone: Boolean(p.phoneEnc),
+  }));
   const factors = (Array.isArray(c.priorityFactors) ? c.priorityFactors : []) as { label: string; points: number }[];
 
   return (
@@ -76,6 +129,10 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
               <dd className="font-semibold tabular-nums">{formatUsd(c.expectedValueCents)}</dd>
             </div>
             <div className="flex justify-between gap-2">
+              <dt className="text-slate-600">AI cost so far</dt>
+              <dd className="tabular-nums">{formatMicros(aiCost)}</dd>
+            </div>
+            <div className="flex justify-between gap-2">
               <dt className="text-slate-600">Eligible contract date</dt>
               <dd className="tabular-nums">{c.eligibleContractDate ? formatDateOnly(c.eligibleContractDate) : "unknown"}</dd>
             </div>
@@ -108,6 +165,12 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
               </tbody>
             </table>
           )}
+          <TracingPanel
+            caseId={c.id}
+            canWrite={canWrite}
+            accepted={accepted}
+            pending={pendingTracing ? { runId: pendingTracing.id, ...TracingEstimate.parse(pendingTracing.output) } : null}
+          />
         </Card>
       </div>
 
@@ -116,6 +179,59 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
           caseId={c.id}
           options={preview.options}
           canOverride={can(operator.role, "compliance:override")}
+        />
+      </Card>
+
+      <Card title="Death verification & sources">
+        <div className="space-y-4">
+          {c.owner.deathVerified ? (
+            <Alert tone="info">
+              Death confirmed{c.owner.dateOfDeath ? ` (died ${formatDateOnly(c.owner.dateOfDeath)})` : ""} — {c.owner.deathVerificationNote}
+            </Alert>
+          ) : null}
+          {reviews.map((r) => (
+            <ExtractionReview key={r.runId} caseId={c.id} canWrite={canWrite} {...r} />
+          ))}
+          <EvidencePanel
+            caseId={c.id}
+            canWrite={canWrite}
+            evidence={evidence.map((e) => ({
+              id: e.id,
+              sourceType: e.sourceType,
+              title: e.title,
+              url: e.url,
+              supportsDeath: e.supportsDeath,
+              hasText: Boolean(e.rawText),
+              extracted: Boolean(e.extractedFacts),
+              pendingExtraction: pendingExtractions.some((r) => r.entityId === e.id),
+              addedAt: e.createdAt.toISOString().slice(0, 10),
+            }))}
+          />
+        </div>
+      </Card>
+
+      <Card title={`Family & heirs (${persons.filter((p) => p.status !== "REJECTED").length})`}>
+        <FamilyTree ownerName={c.owner.fullName} people={personRows} intestate={intestate} />
+        <div className="mt-6">
+          <PeoplePanel caseId={c.id} canWrite={canWrite} people={personRows} duplicates={duplicates} />
+        </div>
+      </Card>
+
+      <Card title="Research summary (AI)">
+        <SummaryPanel
+          caseId={c.id}
+          canWrite={canWrite}
+          summary={
+            latestSummary
+              ? {
+                  runId: latestSummary.id,
+                  createdAt: latestSummary.createdAt.toISOString().slice(0, 16).replace("T", " "),
+                  model: latestSummary.model,
+                  acceptance: latestSummary.acceptance,
+                  output: ResearchSummary.parse(latestSummary.output),
+                }
+              : null
+          }
         />
       </Card>
 
@@ -172,8 +288,7 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
           </table>
         </div>
         <p className="mt-3 text-xs text-slate-600">
-          Research ({c._count.evidence} evidence, {c._count.persons} heir candidates), outreach and documents arrive on this
-          page in Phases 3–6.
+          Outreach, agreements and claim documents arrive on this page in Phases 4–6.
         </p>
       </Card>
 

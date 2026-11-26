@@ -1,0 +1,571 @@
+{
+ "note": "FICTIONAL obituaries written for this eval. Expected values follow prompts/obituary-extraction.md.",
+ "cases": [
+  {
+   "id": "01-simple",
+   "text": "Harold P. Winslow, 84, of Las Vegas, Nevada, passed away on March 3, 2021. He is survived by his wife, Margaret Winslow; his son, David Winslow; and his daughter, Ellen Brooks. He was preceded in death by his brother, Frank Winslow.",
+   "expected": {
+    "isObituary": true,
+    "fullName": "Harold P. Winslow",
+    "dateOfDeath": "2021-03-03",
+    "residenceCity": "Las Vegas",
+    "relatives": [
+     {
+      "name": "Margaret Winslow",
+      "relationship": "SPOUSE",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "David Winslow",
+      "relationship": "CHILD",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Ellen Brooks",
+      "relationship": "CHILD",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Frank Winslow",
+      "relationship": "SIBLING",
+      "status": "PREDECEASED"
+     }
+    ]
+   }
+  },
+  {
+   "id": "02-maiden-inlaws",
+   "text": "Dorothy Ann (Keller) Pruitt, 91, of Henderson, Nevada, died peacefully on January 15, 2020. Dorothy is survived by her daughters, Linda Pruitt-Hayes (Robert) and Carol Mendez (Luis); four grandchildren; and her sister, Ruth Keller. She was predeceased by her husband of 60 years, Walter Pruitt, and her son, James Pruitt.",
+   "expected": {
+    "isObituary": true,
+    "fullName": "Dorothy Ann Pruitt",
+    "otherNames": [
+     "Keller"
+    ],
+    "dateOfDeath": "2020-01-15",
+    "residenceCity": "Henderson",
+    "relatives": [
+     {
+      "name": "Linda Pruitt-Hayes",
+      "relationship": "CHILD",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Robert",
+      "relationship": "IN_LAW",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Carol Mendez",
+      "relationship": "CHILD",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Luis",
+      "relationship": "IN_LAW",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Ruth Keller",
+      "relationship": "SIBLING",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Walter Pruitt",
+      "relationship": "SPOUSE",
+      "status": "PREDECEASED"
+     },
+     {
+      "name": "James Pruitt",
+      "relationship": "CHILD",
+      "status": "PREDECEASED"
+     }
+    ]
+   }
+  },
+  {
+   "id": "03-grandchildren",
+   "text": "Raymond L. Ortega, 78, of Reno passed away on August 9, 2019, surrounded by family. Ray worked 30 years for the railroad. He is survived by his loving wife of 52 years, Teresa; sons Michael (Angela) Ortega and Daniel Ortega; grandchildren Sofia, Mateo and Lucas; and five great-grandchildren.",
+   "expected": {
+    "isObituary": true,
+    "fullName": "Raymond L. Ortega",
+    "dateOfDeath": "2019-08-09",
+    "residenceCity": "Reno",
+    "relatives": [
+     {
+      "name": "Teresa",
+      "relationship": "SPOUSE",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Michael Ortega",
+      "relationship": "CHILD",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Angela",
+      "relationship": "IN_LAW",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Daniel Ortega",
+      "relationship": "CHILD",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Sofia",
+      "relationship": "GRANDCHILD",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Mateo",
+      "relationship": "GRANDCHILD",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Lucas",
+      "relationship": "GRANDCHILD",
+      "status": "SURVIVING"
+     }
+    ]
+   }
+  },
+  {
+   "id": "04-not-obituary",
+   "text": "The Silver Sage Garden Club will meet on June 4, 2022 at the Henderson library. Members Ann Lee and Bob Diaz will present a talk on desert roses. Refreshments will be served.",
+   "expected": {
+    "isObituary": false,
+    "fullName": null,
+    "dateOfDeath": null,
+    "residenceCity": null,
+    "relatives": []
+   }
+  },
+  {
+   "id": "05-parents-predeceased",
+   "text": "Eileen M. Fitzgerald, 67, of Sparks, Nevada, passed away on October 2, 2018. Eileen was preceded in death by her parents, John and Mary Fitzgerald. She is survived by her brother, Patrick Fitzgerald, and her niece, Moira Byrne.",
+   "expected": {
+    "isObituary": true,
+    "fullName": "Eileen M. Fitzgerald",
+    "dateOfDeath": "2018-10-02",
+    "residenceCity": "Sparks",
+    "relatives": [
+     {
+      "name": "John Fitzgerald",
+      "relationship": "PARENT",
+      "status": "PREDECEASED"
+     },
+     {
+      "name": "Mary Fitzgerald",
+      "relationship": "PARENT",
+      "status": "PREDECEASED"
+     },
+     {
+      "name": "Patrick Fitzgerald",
+      "relationship": "SIBLING",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Moira Byrne",
+      "relationship": "NIECE_NEPHEW",
+      "status": "SURVIVING"
+     }
+    ]
+   }
+  },
+  {
+   "id": "06-nickname",
+   "text": "Robert \"Bobby\" James Kincaid, 72, of Elko, Nevada, died on May 21, 2017 after a long illness. Bobby is survived by his wife, Darlene Kincaid, and his daughter, Tammy Kincaid.",
+   "expected": {
+    "isObituary": true,
+    "fullName": "Robert James Kincaid",
+    "otherNames": [
+     "Bobby"
+    ],
+    "dateOfDeath": "2017-05-21",
+    "residenceCity": "Elko",
+    "relatives": [
+     {
+      "name": "Darlene Kincaid",
+      "relationship": "SPOUSE",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Tammy Kincaid",
+      "relationship": "CHILD",
+      "status": "SURVIVING"
+     }
+    ]
+   }
+  },
+  {
+   "id": "07-siblings-cities",
+   "text": "Gerald V. Nolan, 80, of Carson City, Nevada, passed away on February 11, 2022. He is survived by his sisters, Patricia Nolan (of Reno) and Joan Avery of Boise, Idaho. He was preceded in death by his wife, Helen Nolan.",
+   "expected": {
+    "isObituary": true,
+    "fullName": "Gerald V. Nolan",
+    "dateOfDeath": "2022-02-11",
+    "residenceCity": "Carson City",
+    "relatives": [
+     {
+      "name": "Patricia Nolan",
+      "relationship": "SIBLING",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Joan Avery",
+      "relationship": "SIBLING",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Helen Nolan",
+      "relationship": "SPOUSE",
+      "status": "PREDECEASED"
+     }
+    ]
+   }
+  },
+  {
+   "id": "08-partner",
+   "text": "Theodore R. Brannigan, 59, of Las Vegas, Nevada, died on July 4, 2023. Ted is survived by his longtime partner, Glenn Ruiz; his mother, Irene Brannigan; and his brother, Sean Brannigan.",
+   "expected": {
+    "isObituary": true,
+    "fullName": "Theodore R. Brannigan",
+    "otherNames": [
+     "Ted"
+    ],
+    "dateOfDeath": "2023-07-04",
+    "residenceCity": "Las Vegas",
+    "relatives": [
+     {
+      "name": "Glenn Ruiz",
+      "relationship": "PARTNER",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Irene Brannigan",
+      "relationship": "PARENT",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Sean Brannigan",
+      "relationship": "SIBLING",
+      "status": "SURVIVING"
+     }
+    ]
+   }
+  },
+  {
+   "id": "09-stepchild",
+   "text": "Linda K. Larsen, 70, of Pahrump, Nevada, passed away on September 18, 2016. She is survived by her husband, Erik Larsen; her son, Tom Becker; and her stepdaughter, Kim Larsen.",
+   "expected": {
+    "isObituary": true,
+    "fullName": "Linda K. Larsen",
+    "dateOfDeath": "2016-09-18",
+    "residenceCity": "Pahrump",
+    "relatives": [
+     {
+      "name": "Erik Larsen",
+      "relationship": "SPOUSE",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Tom Becker",
+      "relationship": "CHILD",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Kim Larsen",
+      "relationship": "STEP_CHILD",
+      "status": "SURVIVING"
+     }
+    ]
+   }
+  },
+  {
+   "id": "10-unnamed-nieces",
+   "text": "Walter J. Ibsen, 88, of Fallon, Nevada, passed away on December 1, 2015. Walter never married. He is survived by his nephew, Carl Ibsen, who cared for him in his final years, and several nieces and nephews. He was predeceased by his sisters, Greta Ibsen and Ingrid Holm.",
+   "expected": {
+    "isObituary": true,
+    "fullName": "Walter J. Ibsen",
+    "dateOfDeath": "2015-12-01",
+    "residenceCity": "Fallon",
+    "relatives": [
+     {
+      "name": "Carl Ibsen",
+      "relationship": "NIECE_NEPHEW",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Greta Ibsen",
+      "relationship": "SIBLING",
+      "status": "PREDECEASED"
+     },
+     {
+      "name": "Ingrid Holm",
+      "relationship": "SIBLING",
+      "status": "PREDECEASED"
+     }
+    ]
+   }
+  },
+  {
+   "id": "11-abbrev-date",
+   "text": "Maria Elena Quintanilla, 76, of Las Vegas, Nevada, died Nov. 30, 2022. She is survived by her children, Rosa Quintanilla and Hector Quintanilla. She was preceded in death by her husband, Arturo Quintanilla.",
+   "expected": {
+    "isObituary": true,
+    "fullName": "Maria Elena Quintanilla",
+    "dateOfDeath": "2022-11-30",
+    "residenceCity": "Las Vegas",
+    "relatives": [
+     {
+      "name": "Rosa Quintanilla",
+      "relationship": "CHILD",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Hector Quintanilla",
+      "relationship": "CHILD",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Arturo Quintanilla",
+      "relationship": "SPOUSE",
+      "status": "PREDECEASED"
+     }
+    ]
+   }
+  },
+  {
+   "id": "12-no-date",
+   "text": "Leopold Z. Krzyzanowski of Henderson, Nevada, passed away last week at home. He is survived by his daughter, Anna Krzyzanowski, and his grandson, Piotr Wisniewski.",
+   "expected": {
+    "isObituary": true,
+    "fullName": "Leopold Z. Krzyzanowski",
+    "dateOfDeath": null,
+    "residenceCity": "Henderson",
+    "relatives": [
+     {
+      "name": "Anna Krzyzanowski",
+      "relationship": "CHILD",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Piotr Wisniewski",
+      "relationship": "GRANDCHILD",
+      "status": "SURVIVING"
+     }
+    ]
+   }
+  },
+  {
+   "id": "13-junior",
+   "text": "Samuel T. Whitlock Jr., 69, of Sparks, Nevada, passed away on April 22, 2020. He is survived by his wife, Barbara Whitlock; his father, Samuel T. Whitlock Sr.; and his son, Samuel T. Whitlock III.",
+   "expected": {
+    "isObituary": true,
+    "fullName": "Samuel T. Whitlock Jr.",
+    "dateOfDeath": "2020-04-22",
+    "residenceCity": "Sparks",
+    "relatives": [
+     {
+      "name": "Barbara Whitlock",
+      "relationship": "SPOUSE",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Samuel T. Whitlock Sr.",
+      "relationship": "PARENT",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Samuel T. Whitlock III",
+      "relationship": "CHILD",
+      "status": "SURVIVING"
+     }
+    ]
+   }
+  },
+  {
+   "id": "14-same-first-name",
+   "text": "Anne B. Trembath, 83, of Spring Creek, Nevada, passed away on June 6, 2019. She is survived by her daughter, Anne Trembath-Cole, and her son, George Trembath. She was preceded in death by her husband, George Trembath Sr.",
+   "expected": {
+    "isObituary": true,
+    "fullName": "Anne B. Trembath",
+    "dateOfDeath": "2019-06-06",
+    "residenceCity": "Spring Creek",
+    "relatives": [
+     {
+      "name": "Anne Trembath-Cole",
+      "relationship": "CHILD",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "George Trembath",
+      "relationship": "CHILD",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "George Trembath Sr.",
+      "relationship": "SPOUSE",
+      "status": "PREDECEASED"
+     }
+    ]
+   }
+  },
+  {
+   "id": "15-survivors-include",
+   "text": "Oswald B. Penhaligon, 90, of Tonopah, Nevada, died on January 9, 2018. Born in Cornwall, England, he came to Nevada to work the silver mines. Survivors include his son, Edwin Penhaligon, and his daughter, Mabel Trask. His wife, Agnes, died in 2009.",
+   "expected": {
+    "isObituary": true,
+    "fullName": "Oswald B. Penhaligon",
+    "dateOfDeath": "2018-01-09",
+    "residenceCity": "Tonopah",
+    "relatives": [
+     {
+      "name": "Edwin Penhaligon",
+      "relationship": "CHILD",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Mabel Trask",
+      "relationship": "CHILD",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Agnes",
+      "relationship": "SPOUSE",
+      "status": "PREDECEASED"
+     }
+    ]
+   }
+  },
+  {
+   "id": "16-leaves-behind",
+   "text": "Gwendolyn F. Ashworth, 74, of Fallon, Nevada, passed away on May 20, 2016. Gwen leaves behind her husband, Clive Ashworth, and her sister, Doreen Platt.",
+   "expected": {
+    "isObituary": true,
+    "fullName": "Gwendolyn F. Ashworth",
+    "otherNames": [
+     "Gwen"
+    ],
+    "dateOfDeath": "2016-05-20",
+    "residenceCity": "Fallon",
+    "relatives": [
+     {
+      "name": "Clive Ashworth",
+      "relationship": "SPOUSE",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Doreen Platt",
+      "relationship": "SIBLING",
+      "status": "SURVIVING"
+     }
+    ]
+   }
+  },
+  {
+   "id": "17-grandchildren-through",
+   "text": "Beatrix N. Oyelaran, 81, of Las Vegas, Nevada, passed away on October 1, 2021. She was preceded in death by her son, Thomas Oyelaran. She is survived by her daughter, Funmi Adeyemi, and her grandchildren Amy Oyelaran and Ben Oyelaran, children of the late Thomas.",
+   "expected": {
+    "isObituary": true,
+    "fullName": "Beatrix N. Oyelaran",
+    "dateOfDeath": "2021-10-01",
+    "residenceCity": "Las Vegas",
+    "relatives": [
+     {
+      "name": "Thomas Oyelaran",
+      "relationship": "CHILD",
+      "status": "PREDECEASED"
+     },
+     {
+      "name": "Funmi Adeyemi",
+      "relationship": "CHILD",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Amy Oyelaran",
+      "relationship": "GRANDCHILD",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Ben Oyelaran",
+      "relationship": "GRANDCHILD",
+      "status": "SURVIVING"
+     }
+    ]
+   }
+  },
+  {
+   "id": "18-young-parents",
+   "text": "Eli M. Okafor, 34, of Henderson, Nevada, died on March 15, 2024 in an accident. He is survived by his parents, Mark and Lisa Okafor, and his brother, Daniel Okafor.",
+   "expected": {
+    "isObituary": true,
+    "fullName": "Eli M. Okafor",
+    "dateOfDeath": "2024-03-15",
+    "residenceCity": "Henderson",
+    "relatives": [
+     {
+      "name": "Mark Okafor",
+      "relationship": "PARENT",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Lisa Okafor",
+      "relationship": "PARENT",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Daniel Okafor",
+      "relationship": "SIBLING",
+      "status": "SURVIVING"
+     }
+    ]
+   }
+  },
+  {
+   "id": "19-aunt-cousins",
+   "text": "Marco A. Delgado, 45, of North Las Vegas, Nevada, passed away on August 30, 2020. He is survived by his aunt, Rosa Delgado, and his cousins, Luisa Delgado and Pablo Delgado.",
+   "expected": {
+    "isObituary": true,
+    "fullName": "Marco A. Delgado",
+    "dateOfDeath": "2020-08-30",
+    "residenceCity": "North Las Vegas",
+    "relatives": [
+     {
+      "name": "Rosa Delgado",
+      "relationship": "AUNT_UNCLE",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Luisa Delgado",
+      "relationship": "COUSIN",
+      "status": "SURVIVING"
+     },
+     {
+      "name": "Pablo Delgado",
+      "relationship": "COUSIN",
+      "status": "SURVIVING"
+     }
+    ]
+   }
+  },
+  {
+   "id": "20-funeral-home-excluded",
+   "text": "Arabella C. Trembath, 88, of Spring Creek, Nevada, passed away on June 30, 2021. She is survived by her son, Philip Trembath. Services will be held at Silver State Mortuary; Pastor Jim Hale will officiate. Pallbearers are Tom Reed and Sam Ortiz.",
+   "expected": {
+    "isObituary": true,
+    "fullName": "Arabella C. Trembath",
+    "dateOfDeath": "2021-06-30",
+    "residenceCity": "Spring Creek",
+    "relatives": [
+     {
+      "name": "Philip Trembath",
+      "relationship": "CHILD",
+      "status": "SURVIVING"
+     }
+    ]
+   }
+  }
+ ]
+}

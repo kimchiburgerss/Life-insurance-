@@ -152,6 +152,32 @@ export const NEVADA_RULES: RuleSeed[] = [
     sourceUrl: NV_HEIR_FINDER_FAQ,
     notes: "Phase 6 uses this list. Confirm the current claim form requirements with the Division.",
   } satisfies RuleSeed<"CLAIM_REQUIREMENTS">,
+  {
+    stateCode: "NV",
+    ruleType: "INTESTATE_SUCCESSION",
+    version: 1,
+    params: {
+      representation: "PER_STIRPES",
+      spouseWithIssue: { oneChildLine: [1, 2], multipleChildLines: [1, 3] },
+      spouseNoIssue: [
+        { withClass: "PARENTS", spouse: [1, 2] },
+        { withClass: "SIBLINGS", spouse: [1, 2] },
+      ],
+      noSpouseOrder: ["ISSUE", "PARENTS", "SIBLINGS", "GRANDPARENTS", "OTHER_KIN"],
+      communityPropertyToSpouse: true,
+      namedBeneficiaryFirst: true,
+    },
+    effectiveFrom: "2021-10-01",
+    enabled: true,
+    sourceCitation: "NRS 134.040–134.120 (descent of separate property); NRS 123.250 (community property)",
+    sourceUrl: "https://www.leg.state.nv.us/NRS/NRS-134.html",
+    notes:
+      "RESEARCH AID, NOT LEGAL ADVICE. Separate property: spouse 1/2 with one child line, 1/3 with " +
+      "more; no issue: spouse 1/2 with parents, else 1/2 with siblings, else all. No spouse: issue, " +
+      "then parents, then siblings, then grandparents/kin. Community property to the spouse. Verify " +
+      "the current text, the meaning of 'right of representation', and whether a policy's proceeds " +
+      "are separate or community property with Nevada counsel.",
+  } satisfies RuleSeed<"INTESTATE_SUCCESSION">,
 ];
 
 /**

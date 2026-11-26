@@ -1,6 +1,6 @@
 # Security
 
-This file describes the security controls in place after **Phase 2** and what
+This file describes the security controls in place after **Phase 3** and what
 is still to come. The full security review is Phase 7.
 
 ## Controls in place
@@ -19,6 +19,8 @@ is still to come. The full security review is Phase 7.
 | Caching | Cache Components is off, so PII is never put in a shared server cache | `next.config.ts` |
 | File uploads | Authenticated route (`import:run` permission, 2FA required); type checked by extension and parsed with maintained parsers (papaparse, read-excel-file); size limit (`IMPORT_MAX_MB`, default 50 MB) and row limit (500,000). The route is excluded from the proxy because the proxy would silently drop body bytes past 10 MB. Raw files are deleted from the database once processed; the same file can't be imported twice by accident (SHA-256 check) | `app/api/imports/route.ts`, `lib/import/*` |
 | Dependencies | `npm audit` clean. The `effect` package (pulled in by the Prisma CLI) is pinned to the patched 3.22.5 via `overrides` (ReDoS advisory GHSA-7589-6fvf-x4pw) | `package.json` |
+| AI provider | Calls go to the Anthropic API only when `MOCK_MODE=false`. Inputs are minimized per task and SSN/ITIN-like numbers are redacted; contact details are never sent. Anthropic's API data-retention terms apply to what is sent — review them for your agreement | `lib/ai/*` |
+| Heir contact details | Stored only after an operator saves them; AES-256-GCM encrypted; the source evidence and audit entries record which fields were provided, never the values | `lib/research/service.ts` |
 | Containers | Multi-stage image, non-root user, no build tools in the runtime image | `Dockerfile` |
 | Secrets | Only in environment variables / the host's secret store. `.env` is git-ignored | `.env.example` |
 

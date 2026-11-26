@@ -9,6 +9,8 @@ const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
   serverExternalPackages: ["pg", "pg-boss"],
+  // Versioned AI prompts are read from /prompts at runtime; ship them with the standalone build.
+  outputFileTracingIncludes: { "/**": ["./prompts/**/*"] },
   turbopack: {
     rules: {
       "*.css": {

@@ -247,6 +247,14 @@ enum RuleType {
   DISCLOSURE_TEXT
   AGREEMENT_REQUIREMENTS
   CLAIM_REQUIREMENTS
+  INTESTATE_SUCCESSION
+}
+
+enum NotificationKind {
+  CASE_UNLOCKED
+  UNLOCK_BLOCKED
+  IMPORT_FINISHED
+  SYSTEM
 }
 
 enum ApprovalSubjectType {
@@ -467,6 +475,8 @@ model Case {
   expectedValueCents   Int?
   successProbability   Float?
   scoredAt             DateTime?
+  /// Accepted AI tracing-difficulty estimate: { difficulty 1-5, rationale, aiRunId, acceptedAt }.
+  tracingAssessment    Json?
   assignedUserId       String?
   assignedUser         User?           @relation("CaseAssignee", fields: [assignedUserId], references: [id])
   estimatedValueCents  Int?
@@ -516,6 +526,7 @@ model Person {
   sourceEvidenceIds      String[]        @default([])
   doNotContact           Boolean         @default(false)
   piiPurgedAt            DateTime?
+  notes                  String?
   communications         Communication[]
   evidence               Evidence[]
   createdAt              DateTime        @default(now())
@@ -538,6 +549,8 @@ model Evidence {
   /// Object-storage key for uploaded files (encrypted at rest).
   fileKey        String?
   extractedFacts Json?
+  /// Text pasted by the operator (e.g. an obituary). Public-record text only.
+  rawText        String?
   /// True when this evidence supports the owner's death.
   supportsDeath  Boolean            @default(false)
   retrievedAt    DateTime           @default(now())
@@ -759,4 +772,19 @@ model AppSetting {
   updatedAt   DateTime @updatedAt
 
   @@map("app_settings")
+}
+
+/// In-app notifications for operators (e.g. a case unlocked from the waiting period).
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  kind      NotificationKind
+  title     String
+  body      String?
+  caseId    String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt])
+  @@map("notifications")
 }

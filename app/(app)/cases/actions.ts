@@ -4,10 +4,11 @@ import { revalidatePath } from "next/cache";
 import { ForbiddenError } from "@/lib/auth/permissions";
 import { requestIp, requireOperator } from "@/lib/auth/session";
 import { TransitionError, transitionCase } from "@/lib/case/transitions";
+import { advanceAfterResearch } from "@/lib/case/waiting";
 import type { CaseStage } from "@/lib/generated/prisma/enums";
 import { STAGES } from "@/lib/case/stateMachine";
 
-export type TransitionState = { error?: string; ok?: string };
+export type TransitionState = { error?: string; ok?: string; to?: string };
 
 function asStage(v: FormDataEntryValue | null): CaseStage {
   const s = String(v);
@@ -30,13 +31,20 @@ export async function moveCase(_: TransitionState, formData: FormData): Promise<
       ipAddress: await requestIp(),
     });
   } catch (e) {
-    if (e instanceof TransitionError || e instanceof ForbiddenError) return { error: e.message };
+    if (e instanceof TransitionError || e instanceof ForbiddenError) return { error: e.message, to };
     throw e;
+  }
+  // Research complete → the case moves on by itself (waiting period or outreach).
+  let next = "";
+  if (to === "HEIRS_IDENTIFIED") {
+    const outcome = await advanceAfterResearch(caseId);
+    if (outcome?.moved) next = ` It then moved to ${outcome.moved.toLowerCase().replaceAll("_", " ")} automatically.`;
+    else if (outcome && "blocked" in outcome) next = ` It is past the waiting period but can't go to outreach yet: ${outcome.blocked}`;
   }
   revalidatePath(`/cases/${caseId}`);
   revalidatePath("/pipeline");
   revalidatePath("/screening");
-  return { ok: `Moved to ${to.toLowerCase().replaceAll("_", " ")}.` };
+  return { ok: `Moved to ${to.toLowerCase().replaceAll("_", " ")}.${next}`, to };
 }
 
 export type BulkState = { error?: string; ok?: string; failures?: string[] };

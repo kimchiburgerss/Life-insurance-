@@ -34,6 +34,10 @@ export type ScoringOwner = {
 
 export type Factor = { label: string; points: number };
 
+/** Accepted AI tracing estimate (Phase 3): 1 = easy … 5 = very hard. */
+export type TracingAssessment = { difficulty: number; rationale: string };
+export const TRACING_POINTS: Record<number, number> = { 1: 4, 2: 2, 3: 0, 4: -4, 5: -8 };
+
 export type ScoreResult = {
   score: number;
   factors: Factor[];
@@ -82,6 +86,7 @@ export function scoreCase(
   owner: ScoringOwner,
   rules: { waiting: WaitingPeriodParams; feeCap: FeeCapParams },
   today: Date,
+  tracing: TracingAssessment | null = null,
 ): ScoreResult {
   const factors: Factor[] = [];
   const add = (points: number, label: string) => {
@@ -135,6 +140,10 @@ export function scoreCase(
   else if (owner.addressState && owner.addressState !== "NV") add(-3, `last address out of state (${owner.addressState})`);
   const surname = owner.normalizedName.split(" ").filter((t) => !/^(JR|SR|II|III|IV)$/.test(t)).pop() ?? "";
   if (COMMON_SURNAMES.has(surname)) add(-3, "very common surname (harder to trace)");
+  if (tracing) {
+    const pts = TRACING_POINTS[tracing.difficulty] ?? 0;
+    factors.push({ label: `AI tracing estimate ${tracing.difficulty}/5 (accepted): ${tracing.rationale}`.slice(0, 200), points: pts });
+  }
 
   const score = Math.max(0, Math.min(100, factors.reduce((s, f) => s + f.points, 0)));
 

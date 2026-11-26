@@ -52,8 +52,12 @@ export function blindIndex(value: string): string {
   return createHmac("sha256", key("PII_HMAC_KEY")).update(value.trim().toLowerCase()).digest("hex");
 }
 
-/** Matches SSN-like patterns (123-45-6789, 123 45 6789, 123456789). */
-export const SSN_PATTERN = /\b(?!000|666|9\d\d)\d{3}[- ]?(?!00)\d{2}[- ]?(?!0000)\d{4}\b/g;
+/**
+ * Matches SSN-like patterns (123-45-6789, 123 45 6789, 123456789), including
+ * ITINs (9XX-XX-XXXX), which are equally sensitive. Over-redaction of other
+ * 9-digit numbers is accepted: this guards what is stored and sent to AI.
+ */
+export const SSN_PATTERN = /\b(?!000|666)\d{3}[- ]?(?!00)\d{2}[- ]?(?!0000)\d{4}\b/g;
 
 /** Replace SSN-like sequences before text is stored or sent to an AI model. */
 export function redactSsnLike(text: string): string {

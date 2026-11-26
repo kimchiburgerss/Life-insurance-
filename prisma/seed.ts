@@ -318,6 +318,7 @@ async function addObituary(
       url: `https://obituaries.example.com/${name.first.toLowerCase()}-${name.last.toLowerCase()}`,
       supportsDeath: true,
       addedByUserId: userId,
+      rawText: text,
       extractedFacts: {
         text,
         deceasedName: name.full,

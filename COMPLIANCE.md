@@ -71,6 +71,21 @@ will be updated then.
 The priority score and success probability are business heuristics, not legal rules. Their weights are
 listed in `lib/screening/score.ts` and should be recalibrated with real outcomes (Phase 7 metrics).
 
+## Phase 3: research and AI safeguards
+
+| Safeguard | Why | Where | Tests |
+|-----------|-----|-------|-------|
+| **AI output is a suggestion until a human accepts it.** Obituary extractions, research summaries and tracing estimates are stored as `AiRun` rows with `acceptance = PENDING`; nothing reaches the case (people, death confirmation, score) until an operator accepts. Decisions are audited (`ai.suggestion_accepted/rejected`) | Build spec §6 | `lib/ai/run.ts`, `lib/ai/acceptance.ts`, `lib/research/service.ts` | `tests/integration/research.test.ts` |
+| **Minimal, redacted AI input.** Extraction sends only the obituary text; summaries send research facts but no contact details (only "has address: yes/no"). SSN- and ITIN-like numbers are redacted from every AI input and from stored evidence text and notes | Build spec §4, §6 | `lib/ai/run.ts` (`redactInput`), `lib/crypto/pii.ts`, `lib/research/service.ts` | `tests/unit/ai.test.ts`, `tests/integration/research.test.ts` |
+| **Every AI call is logged** with prompt name + version, model actually used (fallback included), input hash, redacted input, output, tokens and cost; invalid output is retried once and recorded | Build spec §6 | `lib/ai/run.ts`, `lib/ai/pricing.ts` | `tests/unit/ai.test.ts` |
+| **Death needs a cited source** (rule unchanged) and accepting an extraction asks the operator to confirm the obituary is the owner, with a confidence breakdown (name, place, age/birth date, timing) | Build spec 5.3 | `lib/research/death.ts` | `tests/unit/research.test.ts` |
+| **Relatives must be quoted.** Each extracted relative carries the exact phrase it came from; quotes not found verbatim are flagged and get lower confidence | Guards against invented heirs | `lib/research/obituary.ts` (`quoteAppears`) | `tests/unit/research.test.ts` |
+| **People are never auto-merged.** Possible duplicates are listed; only identical name + relationship links a second source automatically | Build spec 5.4 | `lib/research/service.ts` | `tests/integration/research.test.ts` |
+| **Intestate helper is labeled "research aid, not legal advice"** and driven by an unverified `INTESTATE_SUCCESSION` rule (NRS 134 / NRS 123.250) | Build spec 5.4 | `lib/research/intestate.ts`, `lib/rules/jurisdictions.ts` | `tests/unit/research.test.ts` |
+| **Data-use limits for people search (rule 9).** Every lookup needs an explicit permissible-purpose confirmation; the purpose (from `PEOPLE_SEARCH_PERMISSIBLE_PURPOSE`) is audited. Results are not stored unless the operator saves one; saved contact details are encrypted and the evidence/audit record lists only which fields were provided | GLBA/DPPA vendor terms | `lib/research/service.ts`, `adapters/people-search` | `tests/integration/research.test.ts` |
+| **No scraping.** Death records come from configured adapters (demo source now; licensed vendors such as obituary data feeds or the NTIS Limited Access DMF later) or from text the operator pastes with its link | Rule 9 | `adapters/death-records` | — |
+| **Waiting-period automation never forces a move.** Auto-advance and the nightly unlock use the normal guarded transition as a SYSTEM actor; blocked unlocks (e.g. unverified rule) become notifications | Rule 1 | `lib/case/waiting.ts` | `tests/integration/research.test.ts` |
+
 ## Other controls in place
 
 - TOTP 2FA is mandatory for every operator. The data-access layer
