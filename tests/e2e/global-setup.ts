@@ -9,6 +9,7 @@ import { randomUUID } from "node:crypto";
 
 export const UNENROLLED_FILE = "test-results/.unenrolled-user.json";
 export const OUTREACH_CASE_FILE = "test-results/.outreach-case.json";
+export const AGREEMENT_CASE_FILE = "test-results/.agreement-case.json";
 
 export default function globalSetup() {
   const creds = {
@@ -23,4 +24,5 @@ export default function globalSetup() {
   mkdirSync("test-results", { recursive: true });
   writeFileSync(UNENROLLED_FILE, JSON.stringify(creds));
   execFileSync("npx", ["tsx", "--conditions=react-server", "tests/e2e/provision-outreach-case.ts", OUTREACH_CASE_FILE], { stdio: "inherit" });
+  execFileSync("npx", ["tsx", "--conditions=react-server", "tests/e2e/provision-agreement-case.ts", AGREEMENT_CASE_FILE], { stdio: "inherit" });
 }

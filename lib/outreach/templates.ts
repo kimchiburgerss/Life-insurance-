@@ -52,6 +52,7 @@ export const TEMPLATE_VARIABLES = [
   "businessEmail",
   "caseRef",
   "optOutUrl",
+  "portalUrl",
   "firstLetterDate",
 ] as const;
 export type TemplateVariable = (typeof TEMPLATE_VARIABLES)[number];

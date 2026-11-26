@@ -191,6 +191,8 @@ enum CommunicationChannel {
   MAIL
   EMAIL
   INBOUND_PHONE_NOTE
+  /// Inbound only: a message an heir sent through the portal.
+  PORTAL_MESSAGE
 }
 
 enum CommunicationDirection {
@@ -261,6 +263,10 @@ enum NotificationKind {
   MAIL_RETURNED
   OPTED_OUT
   REPLY_RECEIVED
+  AGREEMENT_SIGNED
+  AGREEMENT_DECLINED
+  DOCUMENT_UPLOADED
+  PORTAL_ACTIVITY
 }
 
 enum ApprovalSubjectType {
@@ -496,6 +502,9 @@ model Case {
   communications       Communication[]
   agreements           Agreement[]
   claimPackets         ClaimPacket[]
+  heirDocuments        HeirDocument[]
+  storedFiles          StoredFile[]
+  portalAccesses       PortalAccess[]
   invoices             Invoice[]
   aiRuns               AiRun[]
   createdAt            DateTime        @default(now())
@@ -535,6 +544,9 @@ model Person {
   notes                  String?
   communications         Communication[]
   evidence               Evidence[]
+  agreements             Agreement[]
+  heirDocuments          HeirDocument[]
+  portalAccesses         PortalAccess[]
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
 
@@ -635,28 +647,142 @@ model Agreement {
   id                          String          @id @default(cuid())
   caseId                      String
   case                        Case            @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  /// The heir who signs (one agreement per heir).
+  personId                    String?
+  person                      Person?         @relation(fields: [personId], references: [id])
   /// [{ personId, name, email? }]
   signers                     Json
   feeBps                      Int
+  /// The legal cap that applied when the agreement was generated.
+  feeCapBps                   Int?
   propertyValueBeforeFeeCents Int
   propertyValueAfterFeeCents  Int
   /// Snapshot of the JurisdictionRule ids + versions used for validation.
   rulesApplied                Json
   templateVersion             String
   isAttorneyApprovedTemplate  Boolean         @default(false)
+  /// StoredFile id of the generated (unsigned) PDF — what is approved and sent.
   pdfFileKey                  String?
+  /// StoredFile id of the signed PDF (from the e-sign provider, or a scan of a paper signature).
+  signedFileKey               String?
+  /// Plain text of the agreement (approval snapshot and checks).
+  textContent                 String?
+  /// SHA-256 over the PDF bytes + signer; the approval must hold the same hash.
   contentHash                 String?
   approvalId                  String?
+  /// "ESIGN" or "PAPER"
+  signatureMethod             String?
   esignProvider               String?
   esignEnvelopeId             String?
+  /// Validation results at generation and on each check.
+  checklist                   Json?
+  /// Provider/webhook events: [{ at, type, detail, eventId? }]
+  events                      Json            @default("[]")
   status                      AgreementStatus @default(DRAFT)
+  statusReason                String?
   sentAt                      DateTime?
   signedAt                    DateTime?
+  createdById                 String?
   createdAt                   DateTime        @default(now())
   updatedAt                   DateTime        @updatedAt
 
   @@index([caseId])
+  @@index([esignEnvelopeId])
   @@map("agreements")
+}
+
+/// Encrypted file content (AES-256-GCM, per-file IV). Files never leave the
+/// database unencrypted except through an authorized, expiring download.
+model StoredFile {
+  id          String    @id @default(cuid())
+  caseId      String?
+  case        Case?     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  /// AGREEMENT_PDF | AGREEMENT_SIGNED | HEIR_UPLOAD | PAPER_SIGNATURE
+  kind        String
+  fileName    String
+  contentType String
+  sizeBytes   Int
+  /// SHA-256 of the plaintext.
+  sha256      String
+  /// "v1" + IV + auth tag + ciphertext.
+  data        Bytes
+  /// USER:<id>, HEIR:<personId> or SYSTEM:<name>
+  uploadedBy  String
+  purgedAt    DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([caseId])
+  @@map("stored_files")
+}
+
+enum HeirDocumentStatus {
+  RECEIVED
+  ACCEPTED
+  NEEDS_REPLACEMENT
+}
+
+/// A document an heir uploaded through the portal for a claim checklist item.
+model HeirDocument {
+  id           String             @id @default(cuid())
+  caseId       String
+  case         Case               @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  personId     String
+  person       Person             @relation(fields: [personId], references: [id])
+  /// Key from the CLAIM_REQUIREMENTS checklist (e.g. "death_certificate") or "other".
+  checklistKey String
+  fileId       String             @unique
+  status       HeirDocumentStatus @default(RECEIVED)
+  /// Shown to the heir when a replacement is needed.
+  reviewNote   String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime           @default(now())
+
+  @@index([caseId])
+  @@index([personId])
+  @@map("heir_documents")
+}
+
+/// The unique portal link printed in letters. Only a hash of the token is
+/// used for lookup; the encrypted token lets letters be re-rendered.
+model PortalAccess {
+  id          String          @id @default(cuid())
+  caseId      String
+  case        Case            @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  personId    String
+  person      Person          @relation(fields: [personId], references: [id])
+  tokenHash   String          @unique
+  tokenEnc    String
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  lastUsedAt  DateTime?
+  createdById String?
+  createdAt   DateTime        @default(now())
+  sessions    PortalSession[]
+
+  @@index([personId])
+  @@map("portal_access")
+}
+
+model PortalSession {
+  id             String       @id @default(cuid())
+  sessionHash    String       @unique
+  portalAccessId String
+  portalAccess   PortalAccess @relation(fields: [portalAccessId], references: [id], onDelete: Cascade)
+  expiresAt      DateTime
+  lastSeenAt     DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+
+  @@map("portal_sessions")
+}
+
+/// Fixed-window request counters for public endpoints (portal, opt-out).
+model RequestLimit {
+  key         String   @id
+  windowStart DateTime
+  count       Int
+
+  @@map("request_limits")
 }
 
 model ClaimPacket {

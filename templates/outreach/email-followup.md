@@ -1,6 +1,6 @@
 ---
 id: email-followup
-version: 1
+version: 2
 channel: EMAIL
 step: 2
 title: Follow-up email (day 21)
@@ -19,7 +19,7 @@ The State of Nevada's public list shows {{propertySummary}}. {{amountSentence}}
 
 If you would like help, we can prepare the claim with you. {{feeSentence}}
 
-You can reply to this email or call me at {{businessPhone}}. Our reference is {{caseRef}}.
+You can reply to this email, call me at {{businessPhone}}, or use your private page: {{portalUrl}}. Our reference is {{caseRef}}.
 
 Sincerely,
 

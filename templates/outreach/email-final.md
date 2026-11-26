@@ -1,6 +1,6 @@
 ---
 id: email-final
-version: 1
+version: 2
 channel: EMAIL
 step: 3
 title: Final follow-up email (day 45)
@@ -17,7 +17,7 @@ The State of Nevada's public list shows {{propertySummary}}. {{amountSentence}}
 
 {{disclosure}}
 
-If you ever want our help, reply to this email or call me at {{businessPhone}}. Our reference is {{caseRef}}. {{feeSentence}}
+If you ever want our help, reply to this email, call me at {{businessPhone}}, or use your private page: {{portalUrl}}. Our reference is {{caseRef}}. {{feeSentence}}
 
 Either way, we wish you and your family well.
 

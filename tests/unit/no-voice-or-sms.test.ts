@@ -28,8 +28,8 @@ const TELEPHONY_PACKAGES = [
 ];
 
 describe("rule 6 — no outbound calls or texts", () => {
-  it("communication channels are only mail, email and inbound phone notes", () => {
-    expect(Object.values(CommunicationChannel).sort()).toEqual(["EMAIL", "INBOUND_PHONE_NOTE", "MAIL"]);
+  it("communication channels are only mail, email, inbound phone notes and inbound portal messages", () => {
+    expect(Object.values(CommunicationChannel).sort()).toEqual(["EMAIL", "INBOUND_PHONE_NOTE", "MAIL", "PORTAL_MESSAGE"]);
   });
 
   it("no telephony, SMS or synthetic-voice SDK is a dependency", () => {

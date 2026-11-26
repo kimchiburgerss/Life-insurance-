@@ -44,6 +44,7 @@ import { contentHashOf, htmlToText, renderMessage, type Recipient } from "./rend
 import { formatPostalAddress, getBusinessProfile, getOutreachSettings, publicAppUrl, type BusinessProfile } from "./settings";
 import { FAQ_INSERT_ID, getTemplate, templateFor, type TemplateVariable } from "./templates";
 import { newOptOutToken } from "./util";
+import { ensurePortalAccess } from "@/lib/portal/access";
 
 export class OutreachError extends Error {}
 
@@ -133,6 +134,7 @@ function buildVars(input: {
   personalNote: string;
   quotedFeeBps: number;
   optOutToken: string;
+  portalUrl: string;
   firstLetterDate: string;
 }): Record<TemplateVariable, string> {
   const { c, business } = input;
@@ -153,6 +155,7 @@ function buildVars(input: {
     businessEmail: business.email,
     caseRef: caseRef(c.caseNumber, c.stateCode),
     optOutUrl: `${publicAppUrl()}/u/${input.optOutToken}`,
+    portalUrl: input.portalUrl,
     firstLetterDate: input.firstLetterDate,
   };
 }
@@ -247,6 +250,7 @@ async function compose(db: DbClient, args: ComposeArgs) {
   }
 
   const template = templateFor(args.channel, args.step);
+  const portal = await ensurePortalAccess(db, { caseId: args.caseId, personId: args.personId, createdById: args.createdById });
   const vars = buildVars({
     c,
     disclosureText: disclosure.params.text,
@@ -256,6 +260,7 @@ async function compose(db: DbClient, args: ComposeArgs) {
     personalNote: personalNote.slice(0, 600),
     quotedFeeBps,
     optOutToken,
+    portalUrl: portal.url,
     firstLetterDate,
   });
   const rendered = renderMessage({
@@ -702,10 +707,52 @@ async function cancelPending(db: DbClient, where: object, reason: string): Promi
 // ─── Inbound replies and opt-outs ───────────────────────────────────────────
 
 /**
- * Log a reply, call or letter from an heir (calls/texts are handled by a human;
- * rule 6). Any reply stops the case's pending follow-ups, and a contacted case
- * moves to RESPONDED.
+ * Record anything an heir sent us (reply, call note, portal message). Any
+ * reply stops the case's pending follow-ups (and anything pending to that
+ * person), and a contacted case moves to RESPONDED.
  */
+export async function recordInbound(input: {
+  caseId: string;
+  personId: string | null;
+  channel: "MAIL" | "EMAIL" | "INBOUND_PHONE_NOTE" | "PORTAL_MESSAGE";
+  summary: string;
+  createdById: string | null;
+  auditActor: AuditActor;
+  advanceToResponded: boolean;
+}) {
+  const comm = await prisma.$transaction(async (tx) => {
+    const created = await tx.communication.create({
+      data: {
+        caseId: input.caseId,
+        personId: input.personId,
+        channel: input.channel,
+        direction: "INBOUND",
+        status: "RECEIVED",
+        textContent: input.summary.slice(0, 5000),
+        createdById: input.createdById,
+      },
+    });
+    const followUps = await cancelPending(tx, { caseId: input.caseId, sequenceStep: { gt: 1 } }, "Heir replied — follow-ups stopped automatically.");
+    const own = input.personId ? await cancelPending(tx, { caseId: input.caseId, personId: input.personId }, "This person replied.") : 0;
+    await writeAudit(tx, {
+      actor: input.auditActor,
+      action: "communication.inbound_logged",
+      entityType: "Communication",
+      entityId: created.id,
+      after: { caseId: input.caseId, personId: input.personId, channel: input.channel, cancelledFollowUps: followUps + own },
+    });
+    return created;
+  });
+  if (input.advanceToResponded) {
+    const c = await prisma.case.findUniqueOrThrow({ where: { id: input.caseId }, select: { stage: true } });
+    if (c.stage === "CONTACTED") {
+      await transitionCase({ caseId: input.caseId, to: "RESPONDED", actor: { type: "SYSTEM", id: "outreach" }, reason: "Heir replied." }).catch(() => undefined);
+    }
+  }
+  return comm;
+}
+
+/** Operator logs a reply, call or letter (calls/texts are handled by a human; rule 6). */
 export async function logInbound(
   actor: OutreachActor,
   input: { caseId: string; personId: string | null; channel: "MAIL" | "EMAIL" | "INBOUND_PHONE_NOTE"; summary: string; optOut: boolean },
@@ -717,34 +764,8 @@ export async function logInbound(
     const p = await prisma.person.findUniqueOrThrow({ where: { id: input.personId }, select: { caseId: true } });
     if (p.caseId !== input.caseId) throw new OutreachError("That person is not part of this case.");
   }
-  const comm = await prisma.$transaction(async (tx) => {
-    const created = await tx.communication.create({
-      data: {
-        caseId: input.caseId,
-        personId: input.personId,
-        channel: input.channel,
-        direction: "INBOUND",
-        status: "RECEIVED",
-        textContent: summary.slice(0, 5000),
-        createdById: actor.id,
-      },
-    });
-    const followUps = await cancelPending(tx, { caseId: input.caseId, sequenceStep: { gt: 1 } }, "Heir replied — follow-ups stopped automatically.");
-    const own = input.personId ? await cancelPending(tx, { caseId: input.caseId, personId: input.personId }, "This person replied.") : 0;
-    await writeAudit(tx, {
-      actor: audit(actor),
-      action: "communication.inbound_logged",
-      entityType: "Communication",
-      entityId: created.id,
-      after: { caseId: input.caseId, personId: input.personId, channel: input.channel, optOut: input.optOut, cancelledFollowUps: followUps + own },
-    });
-    return created;
-  });
+  const comm = await recordInbound({ ...input, summary, createdById: actor.id, auditActor: audit(actor), advanceToResponded: !input.optOut });
   if (input.optOut && input.personId) await recordOptOut({ personId: input.personId, source: "operator", actor });
-  const c = await prisma.case.findUniqueOrThrow({ where: { id: input.caseId }, select: { stage: true } });
-  if (c.stage === "CONTACTED" && !input.optOut) {
-    await transitionCase({ caseId: input.caseId, to: "RESPONDED", actor: { type: "SYSTEM", id: "outreach" }, reason: "Heir replied (logged by operator)." }).catch(() => undefined);
-  }
   return comm;
 }
 

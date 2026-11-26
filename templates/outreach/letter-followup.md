@@ -1,6 +1,6 @@
 ---
 id: letter-followup
-version: 1
+version: 2
 channel: MAIL
 step: 2
 title: Follow-up letter (day 21)
@@ -18,7 +18,7 @@ The State of Nevada's public list shows {{propertySummary}}. {{amountSentence}}
 
 If you would like help, we can prepare the claim with you. {{feeSentence}}
 
-You can reach me at {{businessPhone}} or {{businessEmail}}. Please mention reference {{caseRef}}. If you do not want to hear from us, tell us or visit {{optOutUrl}}, and we will stop.
+You can reach me at {{businessPhone}} or {{businessEmail}}, or use your private page: {{portalUrl}}. Please mention reference {{caseRef}}. If you do not want to hear from us, tell us or visit {{optOutUrl}}, and we will stop.
 
 Sincerely,
 

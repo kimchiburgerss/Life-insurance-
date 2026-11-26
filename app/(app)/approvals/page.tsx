@@ -5,11 +5,17 @@ import { requireOperator } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { caseRef } from "@/lib/format";
 import type { ChecklistItem } from "@/lib/outreach/checklist";
+import { agreementReference, signerOf, storedAgreementChecklist } from "@/lib/agreements/service";
 
 export const metadata: Metadata = { title: "Approvals" };
 
 export default async function ApprovalsPage() {
   const operator = await requireOperator("case:read");
+  const agreementsWaiting = await prisma.agreement.findMany({
+    where: { status: { in: ["PENDING_APPROVAL", "APPROVED"] } },
+    orderBy: { createdAt: "asc" },
+    include: { case: { select: { caseNumber: true, stateCode: true, owner: { select: { fullName: true } } } } },
+  });
   const [waiting, scheduled, failed, recent] = await Promise.all([
     prisma.communication.findMany({
       where: { direction: "OUTBOUND", status: { in: ["PENDING_APPROVAL", "DRAFT"] } },
@@ -87,6 +93,27 @@ export default async function ApprovalsPage() {
               </tbody>
             </table>
           </div>
+        )}
+      </Card>
+
+      <Card title={`Agreements waiting (${agreementsWaiting.length})`}>
+        {agreementsWaiting.length === 0 ? (
+          <p className="text-sm text-slate-600">None.</p>
+        ) : (
+          <ul className="space-y-1 text-sm">
+            {agreementsWaiting.map((a) => {
+              const fails = storedAgreementChecklist(a).filter((i) => i.status === "fail").length;
+              return (
+                <li key={a.id} className="flex flex-wrap items-center gap-2">
+                  <Link href={`/agreements/${a.id}`} className="font-medium underline">
+                    {agreementReference(a)} — {signerOf(a).name}
+                  </Link>
+                  <span className="text-slate-600">Estate of {a.case.owner.fullName}</span>
+                  {a.status === "APPROVED" ? <Badge tone="bad">approved, not sent</Badge> : fails === 0 ? <Badge tone="good">all green</Badge> : <Badge tone="bad">{fails} to fix</Badge>}
+                </li>
+              );
+            })}
+          </ul>
         )}
       </Card>
 

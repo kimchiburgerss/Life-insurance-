@@ -42,6 +42,7 @@ function vars(over: Partial<Record<TemplateVariable, string>> = {}): Record<Temp
     businessEmail: business.email,
     caseRef: "NV-000042",
     optOutUrl: "https://app.example.com/u/abcdefghjkmnpqrs",
+    portalUrl: "https://app.example.com/p/abcdefghjkmnpqrstuvw",
     firstLetterDate: "October 1, 2026",
     ...over,
   };

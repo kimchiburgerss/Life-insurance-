@@ -1,6 +1,6 @@
 ---
 id: letter-first
-version: 1
+version: 2
 channel: MAIL
 step: 1
 title: First letter
@@ -21,6 +21,8 @@ My name is {{contactName}}. I work for {{businessName}}, a small private company
 **How we can help, if you want us to.** Claims for someone who has died often need paperwork, such as a death certificate and proof of family relationship. We can gather the paperwork and prepare the claim with you. {{feeSentence}}
 
 Please take your time. You do not need to reply. If you would like to talk, call me at {{businessPhone}} or email {{businessEmail}}. A real person will answer. Please mention reference {{caseRef}}.
+
+You can also see these details, send us a message or send documents on your own private page: {{portalUrl}}.
 
 If you would rather not hear from us, tell us by phone, email or mail, or visit {{optOutUrl}}. We will not contact you again.
 

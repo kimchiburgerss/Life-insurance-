@@ -53,6 +53,15 @@ export default async function TodayPage() {
     prisma.communication.count({ where: { direction: "OUTBOUND", status: "FAILED" } }),
     getBusinessProfile(),
   ]);
+  const [docsToReview, agreementsOut] = await Promise.all([
+    prisma.heirDocument.findMany({
+      where: { status: "RECEIVED" },
+      orderBy: { createdAt: "asc" },
+      take: 8,
+      select: { id: true, caseId: true, checklistKey: true, createdAt: true, person: { select: { fullName: true } }, case: { select: { caseNumber: true } } },
+    }),
+    prisma.agreement.count({ where: { status: "SENT" } }),
+  ]);
   const counts = new Map(stageCounts.map((s) => [s.stage, s._count._all]));
   const totalCases = stageCounts.reduce((n, s) => n + s._count._all, 0);
 
@@ -112,6 +121,29 @@ export default async function TodayPage() {
               ))}
             </ul>
           )}
+        </Card>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card title="Documents to review">
+          {docsToReview.length === 0 ? (
+            <p className="text-sm text-slate-600">None.</p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {docsToReview.map((d) => (
+                <li key={d.id}>
+                  <Link href={`/cases/${d.caseId}`} className="underline">
+                    {caseRef(d.case.caseNumber)} · {d.checklistKey.replaceAll("_", " ")} from {d.person.fullName}
+                  </Link>{" "}
+                  <span className="text-slate-500">{d.createdAt.toISOString().slice(0, 10)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+        <Card title="Agreements out for signature">
+          <p className="text-3xl font-semibold tabular-nums">{agreementsOut}</p>
+          <Link href="/pipeline" className="text-sm underline">Pipeline</Link>
         </Card>
       </div>
 

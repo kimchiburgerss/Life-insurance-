@@ -36,7 +36,7 @@ export type RenderInput = {
 
 export type Rendered = { subject: string | null; html: string; text: string };
 
-const URL_VARS = new Set<TemplateVariable>(["optOutUrl", "claimWebsite"]);
+const URL_VARS = new Set<TemplateVariable>(["optOutUrl", "claimWebsite", "portalUrl"]);
 const EMAIL_VARS = new Set<TemplateVariable>(["businessEmail"]);
 /** May be empty (the paragraph/line is then dropped). */
 const OPTIONAL_VARS = new Set<TemplateVariable>(["personalNote", "contactTitleLine", "firstLetterDate"]);

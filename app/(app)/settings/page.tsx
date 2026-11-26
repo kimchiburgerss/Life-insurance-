@@ -6,14 +6,18 @@ import { getBusinessProfile, getOutreachSettings, publicAppUrl } from "@/lib/out
 import { currentTemplateVersions } from "@/lib/outreach/templates";
 import { emailProviderStatus } from "@/adapters/email/status";
 import { mailProviderStatus } from "@/adapters/mail/status";
-import { BusinessForm, ClearCounselForm, CounselForm, OutreachForm } from "./settings-forms";
+import { getAgreementSettings } from "@/lib/agreements/settings";
+import { esignProviderStatus } from "@/adapters/esign/status";
+import { AgreementOptionsForm, AttorneyAgreementForm, BusinessForm, ClearCounselForm, CounselForm, OutreachForm, ToggleAttorneyAgreementForm } from "./settings-forms";
 
 export const metadata: Metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
   const operator = await requireOperator("case:read");
   const owner = can(operator.role, "rules:manage");
-  const [business, settings] = await Promise.all([getBusinessProfile(), getOutreachSettings()]);
+  const [business, settings, agreementSettings] = await Promise.all([getBusinessProfile(), getOutreachSettings(), getAgreementSettings()]);
+  const esign = esignProviderStatus();
+  const attorney = agreementSettings.attorneyTemplate;
   const versions = currentTemplateVersions();
   const counsel = settings.counselApproval;
   const counselCurrent = Boolean(counsel && Object.entries(versions).every(([id, v]) => counsel.templateVersions[id] === v));
@@ -60,6 +64,30 @@ export default async function SettingsPage() {
         </div>
       </Card>
 
+      <Card title="Agreements and heir portal">
+        <AgreementOptionsForm
+          cancellationDays={agreementSettings.cancellationDays}
+          bookingUrl={agreementSettings.bookingUrl}
+          portalLinkDays={agreementSettings.portalLinkDays}
+          disabled={!owner}
+        />
+        <div className="mt-6 space-y-3">
+          <h3 className="font-semibold">Agreement text</h3>
+          {agreementSettings.useAttorneyTemplate && attorney ? (
+            <Alert tone="info">
+              In use: attorney-approved version {attorney.version} (approved by {attorney.approvedBy} on {attorney.approvedOn}).
+            </Alert>
+          ) : (
+            <Alert tone="warning">
+              In use: the shipped DRAFT. Every page of every agreement says &quot;DRAFT — must be reviewed by a licensed attorney before use&quot;
+              {attorney ? `. An attorney-approved version (${attorney.version}, ${attorney.approvedBy}) is uploaded but not switched on.` : "."}
+            </Alert>
+          )}
+          <AttorneyAgreementForm disabled={!owner} />
+          {attorney ? <ToggleAttorneyAgreementForm on={agreementSettings.useAttorneyTemplate} disabled={!owner} /> : null}
+        </div>
+      </Card>
+
       <Card title="Sending services">
         <dl className="space-y-2 text-sm">
           <div className="flex flex-wrap gap-2">
@@ -72,6 +100,12 @@ export default async function SettingsPage() {
             <dt className="w-32 text-slate-600">Email</dt>
             <dd>
               <Badge tone={email.ok ? "good" : "bad"}>{email.ok ? "ready" : "not configured"}</Badge> {email.name}
+            </dd>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <dt className="w-32 text-slate-600">E-signature</dt>
+            <dd>
+              <Badge tone={esign.ok ? "good" : "warn"}>{esign.ok ? "ready" : "paper only"}</Badge> {esign.name} · callback {publicAppUrl()}/api/webhooks/esign
             </dd>
           </div>
           <div className="flex flex-wrap gap-2">

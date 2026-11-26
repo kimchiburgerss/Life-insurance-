@@ -10,9 +10,10 @@ signed the vendor's terms (permissible use, data licensing).
 | `people-search/` | `PeopleSearchProvider.lookup()` | Fictional contact details | Licensed skip-tracing vendors with GLBA/DPPA permissible-use terms (e.g. TLOxp, Accurint, idiCORE) |
 | `mail/` | `MailProvider.sendLetter()` | Records the letter in memory; nothing is printed | **Lob** (`LOB_API_KEY`): HTML letter, First-Class, `use_type: marketing`, idempotency key = message id, delivery webhooks |
 | `email/` | `EmailProvider.send()` | Records the email in memory; nothing is sent | **SMTP from your own business mailbox** (`SMTP_*`). Transactional ESPs (Postmark, SendGrid, Resend) prohibit unsolicited outreach, so they are not used |
-| e-sign, payments | Phases 5–6 | | |
+| `esign/` | `ESignProvider.send()`, `downloadSigned()`, `cancel()` | Keeps requests in memory; the heir signs on a demo form in the portal (not binding) | **Dropbox Sign** (`DROPBOX_SIGN_API_KEY`): non-embedded signing (the heir gets an email), text tags place the signature/date fields, callbacks verified by event hash. BoldSign's API is cheaper per request and would fit the same interface |
+| payments | Phase 6 | | |
 
-**Mail and email providers may only be used by `lib/outreach/gateway.ts`** (the approval-checking send
+**E-signature providers may only be used by `lib/agreements/gateway.ts`. Mail and email providers may only be used by `lib/outreach/gateway.ts`** (the approval-checking send
 gateway). `tests/unit/no-send-without-approval.test.ts` fails if any other module imports them. Screens use
 `adapters/<x>/status.ts`, which reports configuration without being able to send.
 

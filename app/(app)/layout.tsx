@@ -10,7 +10,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const [unread, approvalsWaiting] = await Promise.all([
     prisma.notification.count({ where: { userId: operator.id, readAt: null } }),
     prisma.communication.count({ where: { direction: "OUTBOUND", status: "PENDING_APPROVAL" } }),
-  ]);
+  ]).then(async ([u, comms]) => [u, comms + (await prisma.agreement.count({ where: { status: "PENDING_APPROVAL" } }))] as const);
   return (
     <div className="min-h-screen">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:bg-white focus:p-2">

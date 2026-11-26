@@ -18,7 +18,8 @@ export const config = {
   // /api/imports is excluded so large uploads are not truncated at the proxy
   // body-buffer limit (10 MB); that route checks the session itself.
   // Public by design: /u/<token> and /api/unsubscribe/<token> (heirs opting out
-  // — the unguessable token is the credential) and /api/webhooks/* (verified
-  // by signature).
-  matcher: ["/((?!api/auth|api/health|api/imports|api/webhooks|api/unsubscribe|u/|login|_next/static|_next/image|favicon.ico|robots.txt).*)"],
+  // — the unguessable token is the credential), /api/webhooks/* (verified by
+  // signature), and the heir portal (/p/<token>, /portal, /api/portal/*), which
+  // has its own session and is never an operator session.
+  matcher: ["/((?!api/auth|api/health|api/imports|api/webhooks|api/unsubscribe|api/portal|u/|p/|portal|login|_next/static|_next/image|favicon.ico|robots.txt).*)"],
 };

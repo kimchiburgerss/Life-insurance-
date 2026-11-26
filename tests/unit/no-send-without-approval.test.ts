@@ -16,6 +16,7 @@ import { describe, expect, it } from "vitest";
 
 const ROOTS = ["app", "lib", "adapters", "scripts", "prisma", "components", "proxy.ts", "instrumentation.ts"];
 const GATEWAY = "lib/outreach/gateway.ts";
+const AGREEMENT_GATEWAY = "lib/agreements/gateway.ts";
 
 function sourceFiles(): string[] {
   const out: string[] = [];
@@ -71,7 +72,7 @@ describe("rule 7 — the send gateway is the only way out", () => {
   it("only the gateway marks outbound messages queued or sent", () => {
     const offenders = files
       .filter((f) => f.file !== GATEWAY && f.file !== "prisma/seed.ts")
-      .filter((f) => /\.communication\./.test(f.text) && /status:\s*["'](?:QUEUED|SENT)["']/.test(f.text))
+      .filter((f) => /\.communication\.(?:update|updateMany|upsert|create|createMany)\(/.test(f.text) && /status:\s*["'](?:QUEUED|SENT)["']/.test(f.text))
       .map((f) => f.file);
     expect(offenders).toEqual([]);
   });
@@ -84,9 +85,25 @@ describe("rule 7 — the send gateway is the only way out", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("the demo seed's shortcut is the only place an approval is created outside the outreach service", () => {
+  it("only the agreement gateway imports an e-signature provider", () => {
+    const ESIGN_IMPORT = /from\s+["']@\/adapters\/esign(?:\/(?:index|mock|dropbox-sign))?["']|import\(\s*["']@\/adapters\/esign(?:\/(?:index|mock|dropbox-sign))?["']\s*\)/;
+    const offenders = files.filter((f) => !f.file.startsWith("adapters/esign/")).filter((f) => ESIGN_IMPORT.test(f.text)).map((f) => f.file);
+    expect(offenders).toEqual([AGREEMENT_GATEWAY]);
+  });
+
+  it("only the agreement gateway calls the e-signature API or marks an agreement sent", () => {
+    const api = files.filter((f) => !f.file.startsWith("adapters/")).filter((f) => /api\.hellosign\.com|getESignProvider\(/.test(f.text) && f.file !== AGREEMENT_GATEWAY).map((f) => f.file);
+    expect(api).toEqual([]);
+    const sent = files
+      .filter((f) => f.file !== AGREEMENT_GATEWAY)
+      .filter((f) => /\.agreement\.(?:update|updateMany|create)\(/.test(f.text) && /status:\s*["']SENT["']/.test(f.text))
+      .map((f) => f.file);
+    expect(sent).toEqual([]);
+  });
+
+  it("approvals are created only by the outreach and agreement services (and the demo seed's shortcut)", () => {
     const offenders = files
-      .filter((f) => !["lib/outreach/service.ts", "prisma/seed.ts"].includes(f.file))
+      .filter((f) => !["lib/outreach/service.ts", "lib/agreements/service.ts", "prisma/seed.ts"].includes(f.file))
       .filter((f) => /\.approval\.create\(/.test(f.text))
       .map((f) => f.file);
     expect(offenders).toEqual([]);

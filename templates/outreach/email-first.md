@@ -1,6 +1,6 @@
 ---
 id: email-first
-version: 1
+version: 2
 channel: EMAIL
 step: 1
 title: First email
@@ -22,6 +22,8 @@ My name is {{contactName}}. I work for {{businessName}}, a small private company
 **How we can help, if you want us to.** We can gather the paperwork and prepare the claim with you. {{feeSentence}}
 
 Please take your time. You do not need to reply. If you would like to talk, reply to this email or call me at {{businessPhone}}. A real person will answer. Our reference is {{caseRef}}.
+
+You can also see these details, send us a message or send documents on your own private page: {{portalUrl}}.
 
 Sincerely,
 

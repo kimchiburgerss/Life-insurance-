@@ -49,6 +49,28 @@ These are the defaults Phase 5 will build on unless you say otherwise:
 | 6 | **State pays the heir** | We invoice the heir after the State pays them (the State won't pay finders — see above). |
 | 7 | **Licensing** | Still open (NRS 648). The app does not decide this; resolve it before real sending. |
 
+## Phase 5 decisions (agreements and portal)
+
+| Topic | Decision | Why / source |
+|-------|----------|--------------|
+| E-signature validity | Agreements include an e-signature consent clause and offer paper at no cost | Nevada's UETA (NRS 719) gives e-signatures legal effect only between parties who agreed to transact electronically — confirm with counsel |
+| E-sign vendor | Dropbox Sign (non-embedded: the heir gets an email), mock by default, test mode until switched off | Spec suggestion; free test mode. BoldSign's API is cheaper per request and fits the same adapter |
+| Cancellation | 10 days after signing by default (Settings), written notice, nothing owed | Heir-friendly default; your attorney sets the final term |
+| Governing law | Placeholder "[to be completed by your attorney]" in the DRAFT | Spec 5.7 |
+| Business signature | The business profile contact's typed "/s/" signature, adopted when the OWNER approves | Keeps signing to one step for the heir; confirm with counsel |
+| Documents | Encrypted in Postgres behind a storage interface; signed 30-minute download links | Spec §7; no extra service for a solo founder |
+| Portal access | The link in the letter is the credential (≈99-bit token, expires, revocable); uploads are never shown back | Spec 5.10 ("secure magic-link page") with data minimization |
+
+## Before Phase 6 (claims & billing) — assumptions to confirm
+
+| # | Assumption | Default in the build |
+|---|------------|----------------------|
+| 1 | **Claim form** | We prepare the Nevada claim for the heir to sign (they are the claimant); the packet's checklist comes from `CLAIM_REQUIREMENTS` v2 (claimant ID, death certificate, relationship proof, small-estate affidavit or letters, agreement copy for our file, notarization ≥ $500). The official claim form itself is filled in the State's portal or on its PDF by the heir — the app tracks it as a checklist item. |
+| 2 | **Filing** | The heir (or we, on their behalf where the State allows) files through claims.nevadaunclaimedproperty.gov; the app records filing date, State claim number and outcome. |
+| 3 | **Document review AI** | Claude checks uploaded documents for completeness and name/date consistency against the case (suggestions only, human accepts). |
+| 4 | **Invoicing** | Stripe invoice to the heir for the agreed fee after they confirm receipt (or the State confirms payment), with reminders at 7/14/30 days; the fee is computed from the amount actually paid, never above the agreement's percentage. |
+| 5 | **Revenue metrics** | Collected, outstanding, average days to payment, cost per case. |
+
 ## Imports
 
 | Topic | Decision |

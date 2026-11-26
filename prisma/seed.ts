@@ -19,7 +19,8 @@ import type { CaseStage, PropertyCategory, Relationship } from "@/lib/generated/
 import { ownerMatchKeys } from "@/lib/match/owner";
 import { normalizeAddress } from "@/lib/normalize/address";
 import { hasDeceasedMarker, parseOwnerName } from "@/lib/normalize/name";
-import { createDraft } from "@/lib/outreach/service";
+import { createDraft, recordInbound } from "@/lib/outreach/service";
+import { ensurePortalAccess } from "@/lib/portal/access";
 import { getBusinessProfile, saveBusinessProfile } from "@/lib/outreach/settings";
 import { NEVADA_RULES, PLACEHOLDER_RULES } from "@/lib/rules/jurisdictions";
 import { parseDateOnly } from "@/lib/dates";
@@ -67,7 +68,7 @@ async function seedRules() {
   console.log(`✓ ${NEVADA_RULES.length} Nevada rules + ${PLACEHOLDER_RULES.length} disabled placeholders`);
 }
 
-type Plan = { stage: CaseStage | null; monthsAgoDelivered: [number, number]; unknownDate?: boolean };
+type Plan = { stage: CaseStage | null; monthsAgoDelivered: [number, number]; unknownDate?: boolean; exactAmounts?: boolean };
 
 /** 15 demo cases at various stages + 25 owners not yet screened into a case. */
 const CASE_PLANS: Plan[] = [
@@ -83,7 +84,7 @@ const CASE_PLANS: Plan[] = [
   { stage: "WAITING_PERIOD", monthsAgoDelivered: [12, 16] },
   { stage: "WAITING_PERIOD", monthsAgoDelivered: [3, 6] },
   { stage: "READY_FOR_OUTREACH", monthsAgoDelivered: [28, 40] },
-  { stage: "READY_FOR_OUTREACH", monthsAgoDelivered: [64, 80] },
+  { stage: "RESPONDED", monthsAgoDelivered: [64, 80], exactAmounts: true },
   { stage: "CONTACTED", monthsAgoDelivered: [30, 44] },
   { stage: "CLOSED_SELF_CLAIMED", monthsAgoDelivered: [14, 20] },
 ];
@@ -98,6 +99,7 @@ const PATHS: Partial<Record<CaseStage, CaseStage[]>> = {
   WAITING_PERIOD: ["SCREENED", "OWNER_VERIFIED_DECEASED", "HEIRS_RESEARCHING", "HEIRS_IDENTIFIED", "WAITING_PERIOD"],
   READY_FOR_OUTREACH: ["SCREENED", "OWNER_VERIFIED_DECEASED", "HEIRS_RESEARCHING", "HEIRS_IDENTIFIED", "READY_FOR_OUTREACH"],
   CONTACTED: ["SCREENED", "OWNER_VERIFIED_DECEASED", "HEIRS_RESEARCHING", "HEIRS_IDENTIFIED", "READY_FOR_OUTREACH", "CONTACTED"],
+  RESPONDED: ["SCREENED", "OWNER_VERIFIED_DECEASED", "HEIRS_RESEARCHING", "HEIRS_IDENTIFIED", "READY_FOR_OUTREACH", "CONTACTED", "RESPONDED"],
   CLOSED_SELF_CLAIMED: [
     "SCREENED", "OWNER_VERIFIED_DECEASED", "HEIRS_RESEARCHING", "HEIRS_IDENTIFIED", "WAITING_PERIOD", "CLOSED_SELF_CLAIMED",
   ],
@@ -187,6 +189,7 @@ async function seedDemo() {
   });
 
   let propertySeq = 0;
+  let demoPortalLink: string | null = null;
   let caseCount = 0;
   const allCaseIds: string[] = [];
   for (let i = 0; i < 40; i++) {
@@ -217,7 +220,7 @@ async function seedDemo() {
       const holder = faker.helpers.arrayElement(FICTIONAL_HOLDERS);
       // Properties of one owner were delivered within a couple of months of each other.
       const delivered = addMonths(today, -(baseMonthsAgo - (p % 2)), "clamp");
-      const amount = fakeAmountCents();
+      const amount = plan.exactAmounts ? (fakeAmountCents() ?? faker.number.int({ min: 2_000, max: 40_000 }) * 100) : fakeAmountCents();
       total += amount ?? 0;
       const raw = rawOwnerName(name);
       const parsedRaw = parseOwnerName(raw);
@@ -287,6 +290,7 @@ async function seedDemo() {
       if (to === "OWNER_VERIFIED_DECEASED") await addObituary(c.id, name, dateOfDeath, address.city, owner.id);
       if (to === "HEIRS_IDENTIFIED") await addHeirs(c.id, name.last, owner.id);
       if (to === "CONTACTED") await addSentLetter(c.id, owner.id);
+      if (to === "RESPONDED") demoPortalLink = await addReply(c.id, owner.id);
       const needsOverride = to === "READY_FOR_OUTREACH" || to === "CONTACTED";
       await transitionCase({
         caseId: c.id,
@@ -311,6 +315,7 @@ async function seedDemo() {
   console.log("\nDemo logins (TOTP secret for all three: %s)", DEMO_TOTP_SECRET);
   for (const a of DEMO_ACCOUNTS) console.log(`  ${a.role.padEnd(10)} ${a.email}  /  ${a.password}`);
   console.log("  Current 6-digit code: npm run demo:totp\n");
+  if (demoPortalLink) console.log(`Demo heir portal (a case at "Responded"): ${demoPortalLink}\n`);
 }
 
 async function addObituary(
@@ -432,6 +437,21 @@ async function addSentLetter(caseId: string, userId: string) {
     entityId: comm.id,
     after: { approvalId: approval.id, contentHash: comm.contentHash, channel: "MAIL", provider: "mock-mail", demo: true },
   });
+}
+
+/** The heir replied by phone (demo) — returns their portal link. */
+async function addReply(caseId: string, userId: string): Promise<string> {
+  const person = await prisma.person.findFirstOrThrow({ where: { caseId, status: "CONFIRMED" } });
+  await recordInbound({
+    caseId,
+    personId: person.id,
+    channel: "INBOUND_PHONE_NOTE",
+    summary: "Called after receiving our letter. Interested in help with the paperwork; asked us to send the agreement. (Demo)",
+    createdById: userId,
+    auditActor: { type: "USER", id: userId },
+    advanceToResponded: false,
+  });
+  return (await ensurePortalAccess(prisma, { caseId, personId: person.id, createdById: userId })).url;
 }
 
 async function main() {

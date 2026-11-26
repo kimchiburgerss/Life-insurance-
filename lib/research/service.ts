@@ -300,6 +300,10 @@ export async function mergePersons(actor: Actor, caseId: string, keepId: string,
     if ((await tx.communication.count({ where: { personId: removeId } })) > 0) {
       throw new ResearchError("The person being removed already has communications; merge by hand.");
     }
+    if ((await tx.agreement.count({ where: { personId: removeId } })) > 0 || (await tx.heirDocument.count({ where: { personId: removeId } })) > 0) {
+      throw new ResearchError("The person being removed has agreements or uploaded documents; merge by hand.");
+    }
+    await tx.portalAccess.deleteMany({ where: { personId: removeId } });
     await tx.person.update({
       where: { id: keepId },
       data: {

@@ -70,3 +70,56 @@ export async function clearCounselAction(_: ActionState, fd: FormData): Promise<
   revalidatePath("/settings");
   return { ok: "Counsel approval cleared. Real sending is blocked until it is recorded again." };
 }
+
+export async function saveAgreementOptionsAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const op = await requireOperator("rules:manage");
+  const { saveAgreementSettings } = await import("@/lib/agreements/settings");
+  try {
+    await saveAgreementSettings(op, {
+      cancellationDays: Number(fd.get("cancellationDays") ?? 10),
+      bookingUrl: String(fd.get("bookingUrl") ?? "").trim(),
+      portalLinkDays: Number(fd.get("portalLinkDays") ?? 365),
+    });
+  } catch (e) {
+    if (e instanceof ZodError) return { error: zodMessage(e) };
+    if (e instanceof Error) return { error: e.message };
+    throw e;
+  }
+  revalidatePath("/settings");
+  return { ok: "Saved. New agreements and portal links use these settings." };
+}
+
+export async function uploadAttorneyAgreementAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const op = await requireOperator("rules:manage");
+  const { uploadAttorneyTemplate } = await import("@/lib/agreements/settings");
+  const file = fd.get("file");
+  let source = String(fd.get("text") ?? "");
+  if (file instanceof File && file.size > 0) {
+    if (file.size > 200_000) return { error: "The file is too large for an agreement template." };
+    source = await file.text();
+  }
+  if (fd.get("confirm") !== "on") return { error: "Tick the box to confirm a licensed Nevada attorney approved this exact text." };
+  try {
+    await uploadAttorneyTemplate(op, { source, approvedBy: String(fd.get("approvedBy") ?? ""), approvedOn: String(fd.get("approvedOn") ?? "") });
+  } catch (e) {
+    if (e instanceof ZodError) return { error: zodMessage(e) };
+    if (e instanceof Error) return { error: e.message };
+    throw e;
+  }
+  revalidatePath("/settings");
+  return { ok: "Uploaded. Review it, then switch it on below." };
+}
+
+export async function toggleAttorneyAgreementAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const op = await requireOperator("rules:manage");
+  const { saveAgreementSettings } = await import("@/lib/agreements/settings");
+  const on = fd.get("use") === "on";
+  try {
+    await saveAgreementSettings(op, { useAttorneyTemplate: on }, on ? "Attorney-approved agreement switched on" : "Switched back to the DRAFT agreement");
+  } catch (e) {
+    if (e instanceof Error) return { error: e.message };
+    throw e;
+  }
+  revalidatePath("/settings");
+  return { ok: on ? "New agreements use the attorney-approved text (no DRAFT marking)." : "New agreements use the DRAFT text again." };
+}

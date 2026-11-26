@@ -46,7 +46,7 @@ Heirs call the number in the letter. **Only a person answers** — never use an 
    paperwork and prepare the claim with you. Our fee is [x]% of what the State pays you, only after you
    receive it. If nothing is paid, you owe nothing. You can take as long as you like to decide."
 7. **Never ask for** a Social Security number, bank details or passwords on the phone or by email.
-   (Documents are collected later through the secure portal — Phase 5.)
+   Documents are sent through their private page (the link is in our letter).
 8. **Close.** "Would you like me to send you our agreement to read, or would you rather think about
    it?" If they want no further contact: "Of course — I'll make sure you don't hear from us again."
 9. **Log the call** right away: case → **Log a reply or call** → "They called us", a short summary (no
@@ -55,6 +55,36 @@ Heirs call the number in the letter. **Only a person answers** — never use an 
 Logging a reply stops all pending follow-ups on the case and moves a contacted case to **Responded**.
 
 Do not pressure, do not promise amounts or timelines, and do not say or imply you work for the State.
+
+## Agreements
+
+1. The heir says they want help (call, email reply, or a message in their portal) → the case is at
+   **Responded**. Make sure their mailing address is right (it goes in the agreement); add an email if
+   they want to sign electronically (or they can add it in the portal).
+2. Case → **Agreements** → pick the heir → **Prepare agreement**. The fee defaults to your Settings fee
+   and can't exceed the legal cap. If generation refuses (void period, unknown amount, missing date),
+   fix the cause — e.g. ask the Unclaimed Property Division for the exact amount and record it.
+3. Read the whole PDF beside its checks. Choose **electronically** (the heir gets an email from Dropbox
+   Sign) or **on paper**, tick the box and **Approve and send**.
+4. Paper: download the PDF, print two copies, mail them with a stamped return envelope. When the signed
+   copy comes back, open the agreement and **Record paper signature** (scan or photo + the date they
+   signed). A date before the eligible date is refused (it would be void).
+5. When it's signed the case moves to **Agreement signed**; the signed copy is stored with the case.
+   If the heir declines or changes their mind, cancel the agreement (an e-sign request is withdrawn).
+
+Before real use: upload your attorney's agreement text in **Settings → Agreements** and switch it on.
+Until then every page says DRAFT, and real e-signature requests stay in Dropbox Sign test mode.
+
+## The heir portal and documents
+
+- Every letter includes the heir's private link. If a letter went to the wrong person, **revoke** the link
+  on the case page (Heir portal links); the next letter carries a new one.
+- Uploaded documents appear on the case under **Documents from heirs**. Open each one (the link expires
+  after 30 minutes), then mark it **Looks good** or **Ask for a new copy** with a short note — the heir
+  sees the note on their page.
+- Messages and call-back requests from the portal arrive as replies on the case (and in Notifications).
+  Call back from your own phone; never use automated calls or texts.
+- If a document shows a Social Security number, ask the heir for a copy with it covered; we never need it.
 
 ## Opt-outs and the do-not-contact list
 

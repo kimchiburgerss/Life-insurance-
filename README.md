@@ -4,7 +4,7 @@ An operator console that lets one person do the research, matching, drafting
 and case management of a small heir-finding firm. A human stays in the loop for
 every outbound contact and every legal document.
 
-> **Status: Phase 4 (Outreach) complete.** See [Build phases](#build-phases).
+> **Status: Phase 5 (Agreements & heir portal) complete.** See [Build phases](#build-phases).
 > Compliance rules and where they are enforced: [COMPLIANCE.md](COMPLIANCE.md).
 > Security controls: [SECURITY.md](SECURITY.md). Day-to-day procedures (approvals, calls, opt-outs):
 > [OPERATIONS.md](OPERATIONS.md). Research findings and open legal questions: [ASSUMPTIONS.md](ASSUMPTIONS.md).
@@ -167,6 +167,26 @@ In mock mode letters and emails go to in-memory mocks. For real sending, set `MO
 key and webhook secret, your SMTP mailbox (`.env.example`), and record counsel's approval of the
 template versions in **Settings** — real sending is blocked until you do.
 
+## Agreements and the heir portal
+
+Every letter now includes the heir's **private page** (`/p/<link>`): it explains the situation in plain
+words, shows the free-claim option first, and lets the heir send a message, ask for a call, add an
+email, upload documents for the claim (stored encrypted) and sign the agreement.
+
+1. When the heir replies (log the call, or they message you in the portal), the case moves to
+   **Responded**.
+2. On the case page, **Prepare agreement**: the PDF is generated from the case (property, value before
+   and after the fee, fee %, delivery date, free-claim disclosure, cancellation window, signatures).
+   A fee above the legal cap, an inexact amount or the 24-month void period make generation refuse.
+3. Review it beside its checks and **Approve and send** — by e-signature (the heir gets an email from
+   Dropbox Sign; in demo mode they sign on a demo form in the portal) or on paper (print, mail, and
+   upload the signed copy with its date).
+4. When it is signed, the case moves to **Agreement signed** and the signed PDF is stored.
+
+Until you upload your attorney's version in **Settings → Agreements** and switch it on, every page says
+"DRAFT — must be reviewed by a licensed attorney before use". The demo seed prints a portal link for a
+case at Responded so you can try the heir's side.
+
 ## Deployment (summary; full guide in Phase 7)
 
 - Any host that runs a Docker image and offers managed Postgres works (Render,
@@ -174,7 +194,8 @@ template versions in **Settings** — real sending is blocked until you do.
   release, run the `migrate` target with `SEED_DEMO=false`.
 - Set `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (your HTTPS URL),
   `PII_ENCRYPTION_KEY`, `PII_HMAC_KEY` and `MOCK_MODE` in the host's secret store; for outreach also
-  `PUBLIC_APP_URL`, `LOB_API_KEY`, `LOB_WEBHOOK_SECRET` and `SMTP_*`.
+  `PUBLIC_APP_URL`, `LOB_API_KEY`, `LOB_WEBHOOK_SECRET` and `SMTP_*`; for agreements `DROPBOX_SIGN_API_KEY`
+  (and `DROPBOX_SIGN_TEST_MODE=false` only once the attorney-approved agreement is switched on).
 - Health check: `GET /api/health`.
 - Create the first operator with `npm run user:create` from a shell that can
   reach the production database. Never seed demo data in production.
@@ -185,7 +206,7 @@ template versions in **Settings** — real sending is blocked until you do.
 2. **Ingestion & screening**: done. CSV/XLSX upload (up to 50 MB) with auto-suggested, saveable column mapping and a live preview; name/address/date/amount normalization; de-duplication by state property ID; fuzzy owner grouping with a human review queue; explainable 0–100 priority score with expected value; screening queue with bulk actions; pipeline board with filters and search; case page with rule-checked stage moves and timeline.
 3. **Research**: done. Death-record source adapter (demo source; licensed vendors plug in), evidence with citations, AI obituary extraction (suggestion → human accept) with an "is this our owner?" confidence breakdown, family tree, Nevada intestate helper (research aid), heir candidates with duplicate review, people-search adapter with permissible-purpose confirmation and encrypted contact storage, AI research summaries and tracing-difficulty estimates (feed the score), AI cost per case, waiting-period auto-advance, nightly unlock job with notifications, calendar.
 4. **Outreach**: done. Markdown letter/email templates (first contact, day-21, day-45, public-records FAQ insert) that must contain every required element; safe renderer; AI personal note + AI tone check (with eval set) + banned-terms lint + exact-amount check + reading level; compliance checklist; approval queue with side-by-side preview, edit and reject; single send gateway (Lob letters, SMTP email, mocks) backed by database triggers; auto-move to Contacted; follow-up scheduler; reply/opt-out stop rules; do-not-contact list across cases; one-click unsubscribe; Lob delivery webhooks; Settings (business profile, fee, counsel sign-off, service status); Today view shows approvals and follow-ups due.
-5. Agreements & portal: agreement generation with validation, e-sign adapter, heir portal with document upload.
+5. **Agreements & portal**: done. Agreement PDF generated from case data with rule validation (fee-cap refusal, void period, exact values, required terms), DRAFT marking until an attorney-approved version is uploaded and switched on, OWNER approval of the exact PDF, single e-sign gateway (Dropbox Sign + mock) with verified webhooks, paper-signature path, automatic Agreement sent/signed stages; heir portal (unique link in every letter, sessions, rate limits, free-claim first, status, messages, call requests, email capture, encrypted document uploads, agreement view and demo signing, large-text option); operator review of uploads; portal link management.
 6. Claims & billing: claim packet builder, document-review AI, Stripe invoicing, revenue metrics.
 7. Hardening: security review, accessibility pass, full E2E suite, deployment guide, `OPERATIONS.md`.
 

@@ -1,6 +1,6 @@
 ---
 id: letter-final
-version: 1
+version: 2
 channel: MAIL
 step: 3
 title: Final follow-up letter (day 45)
@@ -16,7 +16,7 @@ The State of Nevada's public list shows {{propertySummary}}. {{amountSentence}}
 
 {{disclosure}}
 
-If you ever want our help, you are welcome to call me at {{businessPhone}} or email {{businessEmail}} and mention reference {{caseRef}}. {{feeSentence}}
+If you ever want our help, you are welcome to call me at {{businessPhone}}, email {{businessEmail}}, or use your private page: {{portalUrl}}. Please mention reference {{caseRef}}. {{feeSentence}}
 
 Either way, we wish you and your family well.
 

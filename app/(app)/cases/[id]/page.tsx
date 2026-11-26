@@ -14,9 +14,16 @@ import { suggestIntestateHeirs } from "@/lib/research/intestate";
 import { ObituaryExtraction, quoteAppears } from "@/lib/research/obituary";
 import { assessExtraction, caseAiCostMicros, possibleDuplicates, ResearchSummary, TracingEstimate } from "@/lib/research/service";
 import { getActiveRule } from "@/lib/rules/repository";
+import { feeCapBpsForCase } from "@/lib/rules/engine";
+import { decryptPii } from "@/lib/crypto/pii";
+import { signedFileUrl } from "@/lib/files/storage";
+import { portalUrl } from "@/lib/portal/access";
+import { agreementReference, signerOf } from "@/lib/agreements/service";
+import { getOutreachSettings } from "@/lib/outreach/settings";
 import { todayIn } from "@/lib/dates";
 import { FamilyTree } from "./family-tree";
 import { EvidencePanel, ExtractionReview, PeoplePanel, SummaryPanel, TracingPanel } from "./research-panels";
+import { AgreementsPanel, DocumentsPanel, PortalLinksPanel } from "./agreements-panel";
 import { OutreachPanel } from "./outreach-panel";
 import { TransitionPanel } from "./transition-panel";
 
@@ -47,6 +54,18 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
     getActiveRule(prisma, c.stateCode, "INTESTATE_SUCCESSION", todayIn()).catch(() => null),
     prisma.communication.findMany({ where: { caseId: c.id }, orderBy: { createdAt: "desc" }, include: { person: { select: { fullName: true } } } }),
   ]);
+  const [agreements, heirDocs, portalAccesses, feeRule, outreachSettings] = await Promise.all([
+    prisma.agreement.findMany({ where: { caseId: c.id }, orderBy: { createdAt: "desc" } }),
+    prisma.heirDocument.findMany({ where: { caseId: c.id }, orderBy: { createdAt: "desc" }, include: { person: { select: { fullName: true } } } }),
+    prisma.portalAccess.findMany({ where: { caseId: c.id, revokedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: "desc" } }),
+    getActiveRule(prisma, c.stateCode, "FEE_CAP", todayIn()).catch(() => null),
+    getOutreachSettings(),
+  ]);
+  const docFiles = await prisma.storedFile.findMany({ where: { id: { in: heirDocs.map((d) => d.fileId) } }, select: { id: true, fileName: true } });
+  const claimRule = await getActiveRule(prisma, c.stateCode, "CLAIM_REQUIREMENTS", todayIn()).catch(() => null);
+  const itemLabel = (key: string) => claimRule?.params.checklist.find((i) => i.key === key)?.label ?? (key === "other" ? "Other document" : key);
+  const capBps = feeRule ? feeCapBpsForCase(c.properties, todayIn(), feeRule.params) : null;
+  const agreementStage = ["RESPONDED", "AGREEMENT_SENT", "AGREEMENT_SIGNED"].includes(c.stage);
   const pendingExtractions = aiRuns.filter((r) => r.promptName === "obituary-extraction" && r.acceptance === "PENDING");
   const reviews = await Promise.all(
     pendingExtractions.map(async (r) => {
@@ -281,6 +300,64 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
         />
       </Card>
 
+      <Card title={`Agreements (${agreements.length})`}>
+        <AgreementsPanel
+          caseId={c.id}
+          canWrite={canWrite}
+          canPrepare={
+            agreementStage
+              ? null
+              : "Agreements are prepared once the heir has responded (case stage Responded). Logging their reply or a portal message moves the case there."
+          }
+          heirs={persons.filter((p) => p.status !== "REJECTED" && !p.isPredeceased && !p.doNotContact).map((p) => ({ id: p.id, name: p.fullName }))}
+          defaultFeePercent={Math.min(outreachSettings.feeBps, capBps ?? outreachSettings.feeBps) / 100}
+          capPercent={capBps != null ? capBps / 100 : null}
+          agreements={agreements.map((a) => ({
+            id: a.id,
+            reference: agreementReference(a),
+            signer: signerOf(a).name,
+            status: a.status,
+            method: a.signatureMethod,
+            created: a.createdAt.toISOString().slice(0, 10),
+          }))}
+        />
+      </Card>
+
+      <Card title={`Documents from heirs (${heirDocs.length})`}>
+        <DocumentsPanel
+          canWrite={canWrite}
+          docs={heirDocs.map((d) => ({
+            id: d.id,
+            heir: d.person.fullName,
+            item: itemLabel(d.checklistKey),
+            fileName: docFiles.find((f) => f.id === d.fileId)?.fileName ?? "file",
+            status: d.status,
+            note: d.reviewNote,
+            uploaded: d.createdAt.toISOString().slice(0, 10),
+            url: signedFileUrl(d.fileId, { ttlSeconds: 30 * 60 }),
+          }))}
+        />
+      </Card>
+
+      <Card title="Heir portal links">
+        <PortalLinksPanel
+          caseId={c.id}
+          canWrite={canWrite}
+          rows={persons
+            .filter((p) => p.status !== "REJECTED" && !p.isPredeceased)
+            .map((p) => {
+              const acc = portalAccesses.find((x) => x.personId === p.id);
+              return {
+                personId: p.id,
+                name: p.fullName,
+                access: acc
+                  ? { id: acc.id, url: portalUrl(decryptPii(acc.tokenEnc)), expires: acc.expiresAt.toISOString().slice(0, 10), lastUsed: acc.lastUsedAt?.toISOString().slice(0, 10) ?? null }
+                  : null,
+              };
+            })}
+        />
+      </Card>
+
       <Card title={`Properties (${c.properties.length})`}>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -334,7 +411,7 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
           </table>
         </div>
         <p className="mt-3 text-xs text-slate-600">
-          Agreements and claim documents arrive on this page in Phases 5–6.
+          The claim packet arrives on this page in Phase 6.
         </p>
       </Card>
 

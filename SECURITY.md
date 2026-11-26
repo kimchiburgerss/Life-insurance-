@@ -1,6 +1,6 @@
 # Security
 
-This file describes the security controls in place after **Phase 4** and what
+This file describes the security controls in place after **Phase 5** and what
 is still to come. The full security review is Phase 7.
 
 ## Controls in place
@@ -26,6 +26,11 @@ is still to come. The full security review is Phase 7.
 | Public endpoints | Only three: `/u/<token>` and `POST /api/unsubscribe/<token>` (opt-out; 16-character random token ≈ 79 bits, same response for unknown tokens, reveals nothing about the case) and `POST /api/webhooks/lob` (HMAC-SHA256 signature over timestamp + raw body with `LOB_WEBHOOK_SECRET`, 5-minute freshness window, 256 KB body limit, idempotent per event id). Everything else requires a 2FA session | `app/u`, `app/api/unsubscribe`, `app/api/webhooks/lob`, `proxy.ts` |
 | Email sending credentials | SMTP user/password and the Lob key live only in environment variables; Settings shows whether each is configured, never the value | `adapters/email`, `adapters/mail`, `app/(app)/settings` |
 | Letter preview | Rendered inside a sandboxed iframe (`sandbox=""`: no scripts, no same-origin access); all variable values are HTML- and Markdown-escaped and template HTML is dropped | `app/(app)/outreach/[id]/page.tsx`, `lib/outreach/render.ts` |
+| Documents at rest | Agreements, signed copies and heir uploads are encrypted with AES-256-GCM (per-file IV, key derived by HKDF from `PII_ENCRYPTION_KEY` for this purpose only) and stored in Postgres, so backups include them; each file's SHA-256 is checked on every read | `lib/files/crypto.ts`, `lib/files/storage.ts` |
+| Document downloads | Operators need a 2FA session **and** a signed URL that expires after 30 minutes (HMAC with a key derived from `PII_HMAC_KEY`); every download is audited. Heir uploads are served as attachments with `nosniff` and a sandbox CSP | `app/api/files/[id]`, `lib/files/storage.ts` |
+| Uploads | Type decided by the file's bytes (PDF, JPEG, PNG, WebP, HEIC only), 15 MB limit, cleaned file names, 30 uploads/hour per heir; upload route excluded from the proxy's body buffer | `lib/files/sniff.ts`, `app/api/portal/documents` |
+| Heir portal | Unique link per heir (20 random characters ≈ 99 bits; stored as an HMAC plus an encrypted copy), expires (default 365 days) and can be revoked; opening it creates a 30-day httpOnly, SameSite=Lax session cookie (HMAC-stored) and removes the token from the address bar; link opening rate-limited to 30 per 10 minutes per IP, actions to 40 per hour per heir; the portal never shows uploaded documents back | `lib/portal/*`, `app/p/[token]`, `app/portal` |
+| E-sign webhook | Dropbox Sign events are verified (HMAC-SHA256 of event time + type with the API key) before anything is applied; idempotent per event | `adapters/esign/webhook.ts`, `app/api/webhooks/esign` |
 | Containers | Multi-stage image, non-root user, no build tools in the runtime image | `Dockerfile` |
 | Secrets | Only in environment variables / the host's secret store. `.env` is git-ignored | `.env.example` |
 
@@ -34,9 +39,9 @@ is still to come. The full security review is Phase 7.
 - **TOTP replay window.** The auth library doesn't remember used codes, so one
   code can be reused within its ~30–90 s window. The password requirement,
   lockout and rate limit reduce the risk. Phase 7 will add a used-code check.
-- **Encrypted object storage + signed, expiring URLs** for uploaded documents
-  (Phase 5, heir portal).
-- **Portal rate limiting** (Phase 5) and a **Content-Security-Policy** with nonces (Phase 7). The public opt-out endpoints rely on token entropy rather than a rate limit; a per-IP limit comes with the portal work.
+- **Malware scanning** of heir uploads is not done; uploads are limited to document/photo formats checked by their bytes and are never rendered inside the app's pages. Add a scanner (e.g. ClamAV) if volume grows.
+- **Object storage**: documents live encrypted in Postgres; move to S3-compatible storage (same interface in `lib/files/storage.ts`) if the database grows large.
+- A **Content-Security-Policy** with nonces (Phase 7).
 - **PII retention purge** for closed-lost cases, default 180 days (`Person.piiPurgedAt` is ready; job arrives with the background worker).
 - **Key rotation** for `PII_ENCRYPTION_KEY` (the `v1:` prefix allows it; tooling in Phase 7).
 - **Backups:** nightly `pg_dump` procedure and restore drill (Phase 7, `OPERATIONS.md`).

@@ -84,7 +84,7 @@ export function mockToneCheck(input: Record<string, unknown>): ToneCheckOutput {
       issues.push({ quote: m[0], problem: rule.message, suggestion: "Remove or rephrase in calm, plain words." });
     }
   }
-  const longSentences = text.split(/[.!?]+\s/).filter((s) => s.split(/\s+/).length > 35);
+  const longSentences = text.split(/[.!?]+\s|\n\s*\n/).filter((s) => s.split(/\s+/).length > 35);
   for (const s of longSentences.slice(0, 3)) {
     issues.push({ quote: s.slice(0, 80), problem: "Very long sentence.", suggestion: "Split it into two short sentences." });
   }
