@@ -18,9 +18,10 @@ function fixture(name: string): Uint8Array {
   return new TextEncoder().encode(text);
 }
 
-async function runImport(name: string) {
+async function runImport(name: string, caseFilter: "ALL" | "RELEVANT" = "ALL") {
   const batch = await createImportBatch({ fileName: name, data: fixture(name), source: "test", createdById: userId });
-  await confirmImportMapping({ batchId: batch.id, mapping: batch.columnMapping, actorId: userId });
+  const mapping = batch.columnMapping as { fields: unknown; options: Record<string, unknown> };
+  await confirmImportMapping({ batchId: batch.id, mapping: { ...mapping, options: { ...mapping.options, caseFilter } }, actorId: userId });
   const summary = await processImportBatch(batch.id, { today });
   return { batch, summary };
 }
@@ -224,6 +225,26 @@ describe("CSV import pipeline", () => {
         decideOwnerMatch({ candidateId: "x", decision: "MERGE", actor: { id: userId, role: "VIEWER" } }),
       ).rejects.toThrow(/permission/);
     });
+  });
+});
+
+describe("case filter for statewide lists", () => {
+  it("RELEVANT keeps every row but only opens cases for insurance/estate/deceased records", async () => {
+    const id = `F${Date.now().toString(36).toUpperCase()}`;
+    const csv =
+      "Property ID,Owner Name,Zip,Holder Name,Property Type,Amount,Date Remitted\n" +
+      `${id}-1,ACME WIDGETS INC,89101,Desert Bloom Credit Union,MS01,40,2020-01-01\n` +
+      `${id}-2,JANE Q NOBODY,89101,Tahoe Trust Bank,MS16,25,2020-01-01\n` +
+      `${id}-3,ESTATE OF OTTO VANCE,89101,Tahoe Trust Bank,MS16,900,2020-01-01\n` +
+      `${id}-4,WILMA FENWICK,89101,Silver Sage Mutual Life Insurance Co,IN03,5000,2020-01-01\n`;
+    const batch = await createImportBatch({ fileName: "filter.csv", data: new TextEncoder().encode(csv), source: "test", createdById: userId });
+    expect((batch.columnMapping as { options: { caseFilter: string } }).options.caseFilter).toBe("RELEVANT");
+    await confirmImportMapping({ batchId: batch.id, mapping: batch.columnMapping, actorId: userId });
+    const summary = await processImportBatch(batch.id, { today });
+    expect(summary).toMatchObject({ insertedCount: 4, newCaseCount: 2 });
+    const props = await prisma.property.findMany({ where: { statePropertyId: { startsWith: id } }, orderBy: { statePropertyId: "asc" } });
+    expect(props.map((p) => Boolean(p.caseId))).toEqual([false, false, true, true]);
+    expect(props.every((p) => p.ownerId)).toBe(true);
   });
 });
 

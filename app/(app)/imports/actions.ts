@@ -43,7 +43,11 @@ function readMapping(formData: FormData): ImportMapping {
   }
   return ImportMappingSchema.parse({
     fields,
-    options: { nameOrder: formData.get("nameOrder") ?? "AUTO", dateOrder: formData.get("dateOrder") ?? "MDY" },
+    options: {
+      nameOrder: formData.get("nameOrder") ?? "AUTO",
+      dateOrder: formData.get("dateOrder") ?? "MDY",
+      caseFilter: formData.get("caseFilter") ?? "RELEVANT",
+    },
   });
 }
 

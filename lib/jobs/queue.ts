@@ -13,6 +13,10 @@ export const QUEUES = {
   rescore: "cases-rescore",
   /** Nightly: move cases out of the 24-month waiting period on their eligible date. */
   unlock: "waiting-period-unlock",
+  /** Every 5 minutes: send approved messages that are due (and retry stuck ones). */
+  outreachDispatch: "outreach-dispatch",
+  /** Daily: draft day-21 / day-45 follow-ups (each still needs an approval). */
+  followUps: "outreach-follow-ups",
 } as const;
 
 const globalForBoss = globalThis as unknown as { boss?: Promise<PgBoss> };
@@ -37,6 +41,13 @@ export async function enqueueImport(batchId: string): Promise<void> {
   const boss = await getBoss();
   // singletonKey: queuing the same batch twice is a no-op.
   await boss.send(QUEUES.import, { batchId }, { singletonKey: batchId, retryLimit: 1, expireInSeconds: 60 * 60 });
+  await ensureWorker();
+}
+
+/** Ask the worker to send due approved messages now (the 5-minute schedule is the backstop). */
+export async function enqueueDispatch(): Promise<void> {
+  const boss = await getBoss();
+  await boss.send(QUEUES.outreachDispatch, {}, { singletonKey: "dispatch-now", retryLimit: 0 });
   await ensureWorker();
 }
 

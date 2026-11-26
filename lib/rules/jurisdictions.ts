@@ -154,6 +154,48 @@ export const NEVADA_RULES: RuleSeed[] = [
   } satisfies RuleSeed<"CLAIM_REQUIREMENTS">,
   {
     stateCode: "NV",
+    ruleType: "CLAIM_REQUIREMENTS",
+    version: 2,
+    params: {
+      checklist: [
+        { key: "claim_form", label: "Nevada claim form signed by the owner's heir (the claimant) — not by us", required: true },
+        { key: "claimant_id", label: "Claimant government-issued photo ID", required: true },
+        { key: "death_certificate", label: "Owner's death certificate", required: true },
+        { key: "relationship_proof", label: "Proof of relationship to the owner (birth/marriage certificates)", required: true },
+        {
+          key: "small_estate_affidavit",
+          label: "Small-estate affidavit",
+          required: false,
+          condition: "Estate within the small-estate limit ($25,000; $100,000 for a surviving spouse)",
+        },
+        {
+          key: "letters_of_administration",
+          label: "Letters of administration / testamentary (probate)",
+          required: false,
+          condition: "Estate above the small-estate limit",
+        },
+        { key: "agreement_copy", label: "Copy of the signed recovery agreement (for the file; the State is not a party)", required: true },
+        { key: "notarization", label: "Notarized claimant signature on the claim form", required: false, condition: "Claims of $500 or more" },
+      ],
+      notarizationThresholdCents: 50_000,
+      powerOfAttorneyAccepted: false,
+      statePaysClaimantOnly: true,
+      smallEstateAffidavitMaxCents: 2_500_000,
+      smallEstateAffidavitSpouseMaxCents: 10_000_000,
+    },
+    effectiveFrom: "2021-10-01",
+    enabled: true,
+    sourceCitation: "Nevada Treasurer Unclaimed Property FAQ and Heir Finder FAQ (Feb 2022); NRS 146.080 (small-estate affidavit)",
+    sourceUrl: "http://www.nevadatreasurer.gov/Unclaimed_Property/FAQ/",
+    notes:
+      "Per the Treasurer: the Office deals directly with the owner/heir, checks are payable only to the claimant, the " +
+      "State is not a party to finder agreements and will not deduct or pay finder fees; a power of attorney is not " +
+      "accepted; notarization is required for claims of $500 and over. Small-estate limits are from NRS 146.080 as " +
+      "understood — verify current amounts. The Treasurer's FAQ also cites NRS 648.012 (private-investigator " +
+      "licensing) — confirm with the Nevada PILB whether your activity requires a license.",
+  } satisfies RuleSeed<"CLAIM_REQUIREMENTS">,
+  {
+    stateCode: "NV",
     ruleType: "INTESTATE_SUCCESSION",
     version: 1,
     params: {

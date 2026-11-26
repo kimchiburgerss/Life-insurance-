@@ -70,6 +70,11 @@ export const ClaimRequirementsParams = z.object({
     .min(1),
   notarizationThresholdCents: z.number().int().min(0).optional(),
   powerOfAttorneyAccepted: z.boolean().optional(),
+  /** The state pays the owner/heir only — never the finder (fees are invoiced to the heir afterwards). */
+  statePaysClaimantOnly: z.boolean().optional(),
+  /** Small-estate affidavit ceilings; above these, letters of administration (probate) are needed. */
+  smallEstateAffidavitMaxCents: z.number().int().min(0).optional(),
+  smallEstateAffidavitSpouseMaxCents: z.number().int().min(0).optional(),
 });
 export type ClaimRequirementsParams = z.infer<typeof ClaimRequirementsParams>;
 

@@ -18,6 +18,7 @@ export function MappingForm(props: {
   const [fields, setFields] = useState<Record<string, string>>(props.initial.fields as Record<string, string>);
   const [nameOrder, setNameOrder] = useState(props.initial.options.nameOrder);
   const [dateOrder, setDateOrder] = useState(props.initial.options.dateOrder);
+  const [caseFilter, setCaseFilter] = useState<"ALL" | "RELEVANT">(props.initial.options.caseFilter);
   const [previewState, previewAction, previewPending] = useActionState<MappingState, FormData>(previewMapping, {});
   const [startState, startAction, startPending] = useActionState<MappingState, FormData>(startImport, {});
   const [saveAs, setSaveAs] = useState("");
@@ -33,6 +34,7 @@ export function MappingForm(props: {
     for (const [k, v] of Object.entries(fields)) if (v) fd.set(`field:${k}`, v);
     fd.set("nameOrder", nameOrder);
     fd.set("dateOrder", dateOrder);
+    fd.set("caseFilter", caseFilter);
     fd.set("saveAs", saveAs);
     if (confirmReportDate) fd.set("confirmReportDate", "on");
     startTransition(() => act(fd));
@@ -46,6 +48,7 @@ export function MappingForm(props: {
     setFields(valid as Record<string, string>);
     setNameOrder(s.mapping.options.nameOrder);
     setDateOrder(s.mapping.options.dateOrder);
+    setCaseFilter(s.mapping.options.caseFilter ?? "ALL");
   }
 
   const error = startState.error ?? previewState.error;
@@ -106,6 +109,14 @@ export function MappingForm(props: {
             </select>
           </label>
         </div>
+        <label className="mt-4 block text-sm">
+          <span className="block font-medium">Which owners become cases?</span>
+          <select value={caseFilter} onChange={(e) => setCaseFilter(e.target.value as "ALL" | "RELEVANT")} className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1 sm:w-auto">
+            <option value="RELEVANT">Only life insurance, annuity and estate records, or names marked deceased (recommended for statewide lists)</option>
+            <option value="ALL">Every owner in the file</option>
+          </select>
+          <span className="mt-1 block text-slate-600">All rows are imported either way; other owners are kept without a case and can be grouped later.</span>
+        </label>
         {needsConfirm ? (
           <div className="mt-4">
             <Alert tone="warning">

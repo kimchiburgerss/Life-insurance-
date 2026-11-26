@@ -7,7 +7,10 @@ import { SignOutButton } from "./sign-out-button";
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const operator = await requireOperator("case:read");
   const mock = (process.env.MOCK_MODE ?? "true") === "true";
-  const unread = await prisma.notification.count({ where: { userId: operator.id, readAt: null } });
+  const [unread, approvalsWaiting] = await Promise.all([
+    prisma.notification.count({ where: { userId: operator.id, readAt: null } }),
+    prisma.communication.count({ where: { direction: "OUTBOUND", status: "PENDING_APPROVAL" } }),
+  ]);
   return (
     <div className="min-h-screen">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:bg-white focus:p-2">
@@ -31,6 +34,10 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             <Link href="/review" className="hover:underline">
               Review queue
             </Link>
+            <Link href="/approvals" className="hover:underline" aria-label={`Approvals, ${approvalsWaiting} waiting`}>
+              Approvals
+              {approvalsWaiting > 0 ? <span className="ml-1 rounded-full bg-amber-600 px-1.5 text-xs text-white">{approvalsWaiting}</span> : null}
+            </Link>
             <Link href="/calendar" className="hover:underline">
               Calendar
             </Link>
@@ -39,6 +46,12 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             </Link>
             <Link href="/rules" className="hover:underline">
               Jurisdiction rules
+            </Link>
+            <Link href="/do-not-contact" className="hover:underline">
+              Do not contact
+            </Link>
+            <Link href="/settings" className="hover:underline">
+              Settings
             </Link>
             {operator.role === "OWNER" ? (
               <Link href="/audit" className="hover:underline">

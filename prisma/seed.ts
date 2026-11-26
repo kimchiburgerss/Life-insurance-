@@ -19,6 +19,8 @@ import type { CaseStage, PropertyCategory, Relationship } from "@/lib/generated/
 import { ownerMatchKeys } from "@/lib/match/owner";
 import { normalizeAddress } from "@/lib/normalize/address";
 import { hasDeceasedMarker, parseOwnerName } from "@/lib/normalize/name";
+import { createDraft } from "@/lib/outreach/service";
+import { getBusinessProfile, saveBusinessProfile } from "@/lib/outreach/settings";
 import { NEVADA_RULES, PLACEHOLDER_RULES } from "@/lib/rules/jurisdictions";
 import { parseDateOnly } from "@/lib/dates";
 import { rescoreCases } from "@/lib/screening/service";
@@ -155,6 +157,22 @@ async function seedDemo() {
   }
   const owner = users[0]!;
   const actor = { type: "USER" as const, id: owner.id, role: "OWNER" as const };
+
+  // Fictional business profile so letters can be drafted in the demo (never overwrites a real one).
+  if (!(await getBusinessProfile())) {
+    await saveBusinessProfile(
+      { id: owner.id, role: "OWNER" },
+      {
+        legalName: "Demo Heir Recovery LLC",
+        contactName: "Demo Owner",
+        contactTitle: "Founder",
+        mailingAddress: { line1: "123 Example Ave", line2: "Suite 100", city: "Las Vegas", state: "NV", zip: "89101" },
+        phone: "702-555-0100",
+        email: "owner@example.com",
+        website: "",
+      },
+    );
+  }
 
   const batch = await prisma.importBatch.create({
     data: {
@@ -372,48 +390,47 @@ async function addHeirs(caseId: string, lastName: string, userId: string) {
   });
 }
 
+/**
+ * A first letter drafted by the real pipeline (templates, mock AI note, tone
+ * check, checklist). Demo shortcut: it is marked approved and mailed (mock)
+ * 18 days ago without the live checklist, because the demo ships with the
+ * Nevada rules unverified. Real approvals go through the approval screen.
+ */
 async function addSentLetter(caseId: string, userId: string) {
   const person = await prisma.person.findFirstOrThrow({ where: { caseId, status: "CONFIRMED" } });
-  const content =
-    "DEMO LETTER — placeholder content. Real templates, tone checks and the approval queue arrive in Phase 4.";
-  const { createHash } = await import("node:crypto");
-  const contentHash = createHash("sha256").update(content).digest("hex");
-  const comm = await prisma.communication.create({
-    data: {
-      caseId,
-      personId: person.id,
-      channel: "MAIL",
-      direction: "OUTBOUND",
-      status: "PENDING_APPROVAL",
-      templateId: "first-letter",
-      templateVersion: "demo",
-      sequenceStep: 1,
-      renderedContent: content,
-      contentHash,
-      createdById: userId,
-    },
-  });
+  const draft = await createDraft({ id: userId, role: "OWNER" }, { caseId, personId: person.id, channel: "MAIL" });
+  const comm = await prisma.communication.findUniqueOrThrow({ where: { id: draft.id } });
   const approval = await prisma.approval.create({
     data: {
       subjectType: "COMMUNICATION",
       subjectId: comm.id,
       decision: "APPROVED",
-      contentHash,
-      contentSnapshot: content,
-      checklist: { demo: true },
+      contentHash: comm.contentHash!,
+      contentSnapshot: comm.textContent ?? "",
+      checklist: ((comm.checklist as { items?: unknown } | null)?.items ?? []) as never,
+      reason: "Demo data: seeded without the live checklist (demo rules are unverified).",
       approvedById: userId,
     },
   });
+  await prisma.communication.update({ where: { id: comm.id }, data: { status: "APPROVED", approvalId: approval.id } });
   await prisma.communication.update({
     where: { id: comm.id },
-    data: { status: "SENT", approvalId: approval.id, sentAt: new Date(), providerMessageId: `mock_${comm.id}` },
+    data: {
+      status: "SENT",
+      sentAt: addDays(todayIn(), -18),
+      provider: "mock-mail",
+      providerMessageId: `mock_ltr_${comm.id}`,
+      deliveryStatus: "sent",
+      events: [{ at: new Date().toISOString(), type: "sent", detail: "Mock mail (demo seed)" }],
+    },
   });
+  await prisma.notification.deleteMany({ where: { caseId, kind: "APPROVAL_NEEDED" } });
   await writeAudit(prisma, {
     actor: { type: "USER", id: userId },
     action: "communication.approved_and_sent",
     entityType: "Communication",
     entityId: comm.id,
-    after: { approvalId: approval.id, contentHash, channel: "MAIL", provider: "mock" },
+    after: { approvalId: approval.id, contentHash: comm.contentHash, channel: "MAIL", provider: "mock-mail", demo: true },
   });
 }
 

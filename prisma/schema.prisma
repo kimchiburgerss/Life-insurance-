@@ -255,6 +255,12 @@ enum NotificationKind {
   UNLOCK_BLOCKED
   IMPORT_FINISHED
   SYSTEM
+  APPROVAL_NEEDED
+  FOLLOW_UP_READY
+  SEND_FAILED
+  MAIL_RETURNED
+  OPTED_OUT
+  REPLY_RECEIVED
 }
 
 enum ApprovalSubjectType {
@@ -581,28 +587,44 @@ model Approval {
 }
 
 model Communication {
-  id                String                 @id @default(cuid())
-  caseId            String
-  case              Case                   @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  personId          String?
-  person            Person?                @relation(fields: [personId], references: [id])
-  channel           CommunicationChannel
-  direction         CommunicationDirection
-  status            CommunicationStatus    @default(DRAFT)
-  templateId        String?
-  templateVersion   String?
-  sequenceStep      Int?
-  subject           String?
-  renderedContent   String?
-  contentHash       String?
-  approvalId        String?
-  providerMessageId String?
-  deliveryStatus    String?
-  scheduledFor      DateTime?
-  sentAt            DateTime?
-  createdById       String?
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
+  id                   String                 @id @default(cuid())
+  caseId               String
+  case                 Case                   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  personId             String?
+  person               Person?                @relation(fields: [personId], references: [id])
+  channel              CommunicationChannel
+  direction            CommunicationDirection
+  status               CommunicationStatus    @default(DRAFT)
+  templateId           String?
+  templateVersion      String?
+  sequenceStep         Int?
+  subject              String?
+  renderedContent      String?
+  /// Plain-text version (emails); renderedContent holds the HTML that is sent.
+  textContent          String?
+  /// Encrypted JSON snapshot of who it was sent to (name + address or email).
+  recipientEnc         String?
+  /// AI-drafted (then human-editable) personal paragraph.
+  personalNote         String?
+  personalizationRunId String?
+  /// Compliance checklist and tone check computed for this exact content.
+  checklist            Json?
+  toneCheck            Json?
+  /// Random token for the one-click unsubscribe link (emails).
+  optOutToken          String?                @unique
+  provider             String?
+  /// Provider/webhook events: [{ at, type, detail }]
+  events               Json                   @default("[]")
+  cancelledReason      String?
+  contentHash          String?
+  approvalId           String?
+  providerMessageId    String?
+  deliveryStatus       String?
+  scheduledFor         DateTime?
+  sentAt               DateTime?
+  createdById          String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 
   @@index([caseId])
   @@index([status, scheduledFor])

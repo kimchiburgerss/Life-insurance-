@@ -1,6 +1,6 @@
 # Security
 
-This file describes the security controls in place after **Phase 3** and what
+This file describes the security controls in place after **Phase 4** and what
 is still to come. The full security review is Phase 7.
 
 ## Controls in place
@@ -21,6 +21,11 @@ is still to come. The full security review is Phase 7.
 | Dependencies | `npm audit` clean. The `effect` package (pulled in by the Prisma CLI) is pinned to the patched 3.22.5 via `overrides` (ReDoS advisory GHSA-7589-6fvf-x4pw) | `package.json` |
 | AI provider | Calls go to the Anthropic API only when `MOCK_MODE=false`. Inputs are minimized per task and SSN/ITIN-like numbers are redacted; contact details are never sent. Anthropic's API data-retention terms apply to what is sent — review them for your agreement | `lib/ai/*` |
 | Heir contact details | Stored only after an operator saves them; AES-256-GCM encrypted; the source evidence and audit entries record which fields were provided, never the values | `lib/research/service.ts` |
+| Outbound messages | Only `lib/outreach/gateway.ts` can reach the mail/email providers (enforced by a static test); it re-verifies the OWNER's approval of the exact content and re-runs the compliance checklist at send time. Database triggers refuse "sent" rows without a matching approval, edits after approval, and any change to an approval | `lib/outreach/gateway.ts`, `20261126080000_phase4_send_guards` |
+| Recipient data in messages | The recipient (name + address/email) is stored AES-256-GCM encrypted with each message; letter/email bodies hold only the heir's name. Approval snapshots hold the text, not the address. The tone check sends the text to the AI with names replaced by "[NAME]" | `lib/outreach/service.ts` |
+| Public endpoints | Only three: `/u/<token>` and `POST /api/unsubscribe/<token>` (opt-out; 16-character random token ≈ 79 bits, same response for unknown tokens, reveals nothing about the case) and `POST /api/webhooks/lob` (HMAC-SHA256 signature over timestamp + raw body with `LOB_WEBHOOK_SECRET`, 5-minute freshness window, 256 KB body limit, idempotent per event id). Everything else requires a 2FA session | `app/u`, `app/api/unsubscribe`, `app/api/webhooks/lob`, `proxy.ts` |
+| Email sending credentials | SMTP user/password and the Lob key live only in environment variables; Settings shows whether each is configured, never the value | `adapters/email`, `adapters/mail`, `app/(app)/settings` |
+| Letter preview | Rendered inside a sandboxed iframe (`sandbox=""`: no scripts, no same-origin access); all variable values are HTML- and Markdown-escaped and template HTML is dropped | `app/(app)/outreach/[id]/page.tsx`, `lib/outreach/render.ts` |
 | Containers | Multi-stage image, non-root user, no build tools in the runtime image | `Dockerfile` |
 | Secrets | Only in environment variables / the host's secret store. `.env` is git-ignored | `.env.example` |
 
@@ -31,7 +36,7 @@ is still to come. The full security review is Phase 7.
   lockout and rate limit reduce the risk. Phase 7 will add a used-code check.
 - **Encrypted object storage + signed, expiring URLs** for uploaded documents
   (Phase 5, heir portal).
-- **Portal rate limiting** (Phase 5) and a **Content-Security-Policy** with nonces (Phase 7).
+- **Portal rate limiting** (Phase 5) and a **Content-Security-Policy** with nonces (Phase 7). The public opt-out endpoints rely on token entropy rather than a rate limit; a per-IP limit comes with the portal work.
 - **PII retention purge** for closed-lost cases, default 180 days (`Person.piiPurgedAt` is ready; job arrives with the background worker).
 - **Key rotation** for `PII_ENCRYPTION_KEY` (the `v1:` prefix allows it; tooling in Phase 7).
 - **Backups:** nightly `pg_dump` procedure and restore drill (Phase 7, `OPERATIONS.md`).

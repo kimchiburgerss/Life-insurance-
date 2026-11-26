@@ -45,7 +45,7 @@ export default async function ImportPage({ params }: PageProps<"/imports/[id]">)
           batchId={batch.id}
           headers={batch.headers}
           previewRows={batch.previewRows as Record<string, unknown>[]}
-          initial={parsedMapping.success ? parsedMapping.data : { fields: (batch.columnMapping as { fields?: Record<string, string> })?.fields ?? {}, options: { nameOrder: "AUTO", dateOrder: "MDY" } }}
+          initial={parsedMapping.success ? parsedMapping.data : { fields: (batch.columnMapping as { fields?: Record<string, string> })?.fields ?? {}, options: { nameOrder: "AUTO", dateOrder: "MDY", caseFilter: "RELEVANT" } }}
           fields={IMPORT_FIELDS.map((f) => ({ key: f.key, label: f.label, required: f.required }))}
           saved={saved.map((s) => ({ id: s.id, name: s.name, mapping: s.mapping as never }))}
         />

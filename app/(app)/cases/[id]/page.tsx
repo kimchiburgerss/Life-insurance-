@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Alert, Badge, Card } from "@/components/ui";
 import { can } from "@/lib/auth/permissions";
 import { requireOperator } from "@/lib/auth/session";
-import { stageLabel } from "@/lib/case/stateMachine";
+import { HEIR_CONFIDENCE_THRESHOLD, stageLabel } from "@/lib/case/stateMachine";
 import { previewTransitions } from "@/lib/case/transitions";
 import { prisma } from "@/lib/db";
 import { formatDateOnly } from "@/lib/dates";
@@ -17,6 +17,7 @@ import { getActiveRule } from "@/lib/rules/repository";
 import { todayIn } from "@/lib/dates";
 import { FamilyTree } from "./family-tree";
 import { EvidencePanel, ExtractionReview, PeoplePanel, SummaryPanel, TracingPanel } from "./research-panels";
+import { OutreachPanel } from "./outreach-panel";
 import { TransitionPanel } from "./transition-panel";
 
 export const metadata: Metadata = { title: "Case" };
@@ -35,7 +36,7 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
   });
   if (!c) notFound();
   const canWrite = can(operator.role, "case:write");
-  const [preview, timeline, evidence, persons, aiRuns, duplicates, aiCost, intestateRule] = await Promise.all([
+  const [preview, timeline, evidence, persons, aiRuns, duplicates, aiCost, intestateRule, comms] = await Promise.all([
     previewTransitions(c.id, operator.role),
     prisma.auditLog.findMany({ where: { entityType: "Case", entityId: c.id }, orderBy: { id: "desc" }, take: 50 }),
     prisma.evidence.findMany({ where: { caseId: c.id }, orderBy: { createdAt: "asc" } }),
@@ -44,6 +45,7 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
     possibleDuplicates(c.id),
     caseAiCostMicros(c.id),
     getActiveRule(prisma, c.stateCode, "INTESTATE_SUCCESSION", todayIn()).catch(() => null),
+    prisma.communication.findMany({ where: { caseId: c.id }, orderBy: { createdAt: "desc" }, include: { person: { select: { fullName: true } } } }),
   ]);
   const pendingExtractions = aiRuns.filter((r) => r.promptName === "obituary-extraction" && r.acceptance === "PENDING");
   const reviews = await Promise.all(
@@ -83,6 +85,30 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
     hasEmail: Boolean(p.emailEnc),
     hasPhone: Boolean(p.phoneEnc),
   }));
+  const outreachStage = c.stage === "READY_FOR_OUTREACH" || c.stage === "CONTACTED";
+  const outreachBlocked =
+    preview.eligibility.status === "WAITING"
+      ? "Outreach opens when the 24-month void period ends."
+      : preview.eligibility.status === "UNKNOWN"
+        ? "Outreach needs every property's delivery date (24-month rule)."
+        : !outreachStage
+          ? c.stage === "RESPONDED" || c.stage.startsWith("AGREEMENT") || c.stage.startsWith("CLAIM") || c.stage.startsWith("CLOSED")
+            ? null
+            : "Move the case to Ready for outreach to draft letters."
+          : null;
+  const activeFirst = (personId: string, channel: "MAIL" | "EMAIL") =>
+    comms.some((m) => m.personId === personId && m.channel === channel && m.direction === "OUTBOUND" && m.sequenceStep === 1 && !["REJECTED", "CANCELLED", "FAILED"].includes(m.status));
+  const outreachHeirs = persons
+    .filter((p) => p.status !== "REJECTED" && !p.isPredeceased && p.relationshipConfidence >= HEIR_CONFIDENCE_THRESHOLD)
+    .map((p) => ({
+      id: p.id,
+      name: p.fullName,
+      relationship: p.relationship,
+      hasAddress: Boolean(p.mailingAddressEnc),
+      hasEmail: Boolean(p.emailEnc),
+      doNotContact: p.doNotContact,
+      drafted: { MAIL: activeFirst(p.id, "MAIL"), EMAIL: activeFirst(p.id, "EMAIL") },
+    }));
   const factors = (Array.isArray(c.priorityFactors) ? c.priorityFactors : []) as { label: string; points: number }[];
 
   return (
@@ -235,6 +261,26 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
         />
       </Card>
 
+      <Card title={`Outreach (${comms.length})`}>
+        <OutreachPanel
+          caseId={c.id}
+          canWrite={canWrite}
+          blockedReason={outreachBlocked}
+          heirs={outreachStage ? outreachHeirs : []}
+          allPeople={persons.filter((p) => p.status !== "REJECTED").map((p) => ({ id: p.id, name: p.fullName }))}
+          comms={comms.map((m) => ({
+            id: m.id,
+            when: (m.sentAt ?? m.createdAt).toISOString().slice(0, 10),
+            direction: m.direction,
+            channel: m.channel,
+            step: m.sequenceStep,
+            person: m.person?.fullName ?? null,
+            status: m.status,
+            summary: m.direction === "INBOUND" ? m.textContent : null,
+          }))}
+        />
+      </Card>
+
       <Card title={`Properties (${c.properties.length})`}>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -288,7 +334,7 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
           </table>
         </div>
         <p className="mt-3 text-xs text-slate-600">
-          Outreach, agreements and claim documents arrive on this page in Phases 4–6.
+          Agreements and claim documents arrive on this page in Phases 5–6.
         </p>
       </Card>
 

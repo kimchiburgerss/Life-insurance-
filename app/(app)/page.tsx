@@ -4,8 +4,9 @@ import { Alert, Badge, Card } from "@/components/ui";
 import { requireOperator } from "@/lib/auth/session";
 import { STAGES, stageLabel } from "@/lib/case/stateMachine";
 import { prisma } from "@/lib/db";
-import { formatDateOnly, todayIn } from "@/lib/dates";
+import { addDays, formatDateOnly, todayIn } from "@/lib/dates";
 import { caseRef, formatUsd } from "@/lib/format";
+import { getBusinessProfile } from "@/lib/outreach/settings";
 
 export const metadata: Metadata = { title: "Today" };
 
@@ -14,7 +15,9 @@ export default async function TodayPage() {
   await requireOperator("case:read");
   const today = todayIn();
 
-  const [stageCounts, unverifiedRules, upcomingUnlocks, readyCount, totalProperties, topByValue, reviewCount, screeningCount, runningImports] = await Promise.all([
+  // End of the 7th day from today (Nevada calendar date at UTC midnight + 8 days).
+  const weekAhead = addDays(today, 8);
+  const [stageCounts, unverifiedRules, upcomingUnlocks, readyCount, totalProperties, topByValue, reviewCount, screeningCount, runningImports, approvalsWaiting, followUpsDue, failedSends, businessProfile] = await Promise.all([
     prisma.case.groupBy({ by: ["stage"], _count: { _all: true } }),
     prisma.jurisdictionRule.count({ where: { enabled: true, lastVerifiedAt: null } }),
     prisma.case.findMany({
@@ -40,6 +43,15 @@ export default async function TodayPage() {
     prisma.ownerMatchCandidate.count({ where: { status: "PENDING" } }),
     prisma.case.count({ where: { stage: "IMPORTED" } }),
     prisma.importBatch.count({ where: { status: { in: ["QUEUED", "PROCESSING"] } } }),
+    prisma.communication.count({ where: { direction: "OUTBOUND", status: "PENDING_APPROVAL" } }),
+    prisma.communication.findMany({
+      where: { direction: "OUTBOUND", sequenceStep: { gt: 1 }, status: { in: ["PENDING_APPROVAL", "APPROVED"] }, scheduledFor: { lte: weekAhead } },
+      orderBy: { scheduledFor: "asc" },
+      take: 10,
+      select: { id: true, status: true, scheduledFor: true, channel: true, person: { select: { fullName: true } }, case: { select: { caseNumber: true } } },
+    }),
+    prisma.communication.count({ where: { direction: "OUTBOUND", status: "FAILED" } }),
+    getBusinessProfile(),
   ]);
   const counts = new Map(stageCounts.map((s) => [s.stage, s._count._all]));
   const totalCases = stageCounts.reduce((n, s) => n + s._count._all, 0);
@@ -62,6 +74,46 @@ export default async function TodayPage() {
           </Link>
         </Alert>
       ) : null}
+
+      {!businessProfile ? (
+        <Alert tone="warning">
+          Set up your business profile (name, a real contact person, postal address, phone) before drafting letters.{" "}
+          <Link href="/settings" className="font-medium underline">
+            Settings
+          </Link>
+        </Alert>
+      ) : null}
+      {failedSends > 0 ? (
+        <Alert>
+          {failedSends} approved message{failedSends === 1 ? "" : "s"} failed to send.{" "}
+          <Link href="/approvals" className="font-medium underline">
+            Review
+          </Link>
+        </Alert>
+      ) : null}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card title="Approvals waiting">
+          <p className="text-3xl font-semibold tabular-nums">{approvalsWaiting}</p>
+          <Link href="/approvals" className="text-sm underline">Open approval queue</Link>
+        </Card>
+        <Card title="Follow-ups due this week">
+          {followUpsDue.length === 0 ? (
+            <p className="text-sm text-slate-600">None.</p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {followUpsDue.map((f) => (
+                <li key={f.id}>
+                  <Link href={`/outreach/${f.id}`} className="underline">
+                    {f.scheduledFor?.toISOString().slice(0, 10)} · {caseRef(f.case.caseNumber)} · {f.channel === "MAIL" ? "letter" : "email"} to {f.person?.fullName}
+                  </Link>{" "}
+                  <Badge tone={f.status === "APPROVED" ? "good" : "warn"}>{f.status === "APPROVED" ? "approved" : "needs approval"}</Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card title="To screen">
@@ -134,7 +186,7 @@ export default async function TodayPage() {
           <Card title="Ready for outreach">
             <p className="text-3xl font-semibold tabular-nums">{readyCount}</p>
             <p className="text-sm text-slate-600">
-              Cases past the 24-month void period with heirs identified. Outreach drafting arrives in Phase 4.
+              Cases past the 24-month void period with heirs identified. Draft letters from each case page.
             </p>
           </Card>
           <Card title="Next waiting-period unlocks">

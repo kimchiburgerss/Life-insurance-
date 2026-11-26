@@ -33,6 +33,13 @@ export const ImportMappingSchema = z
     options: z.object({
       nameOrder: z.enum(["AUTO", "LAST_FIRST", "FIRST_LAST"]).default("AUTO"),
       dateOrder: z.enum(["MDY", "DMY", "YMD"]).default("MDY"),
+      /**
+       * ALL: every owner becomes a case. RELEVANT (recommended for statewide
+       * lists): only owners with a life-insurance/annuity/estate record, a
+       * life-insurer holder, or an estate/deceased marker become cases; the
+       * rest are stored (properties + owner) without a case.
+       */
+      caseFilter: z.enum(["ALL", "RELEVANT"]).default("ALL"),
     }),
   })
   .refine((m) => Boolean(m.fields.statePropertyId), { message: "Map a column to “State property ID”." })

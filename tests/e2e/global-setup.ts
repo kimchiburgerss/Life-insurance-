@@ -1,12 +1,14 @@
 /**
- * Creates a fresh operator WITHOUT 2FA for the enrollment test. Runs the
- * provisioning code through tsx (the app code is ESM).
+ * Creates a fresh operator WITHOUT 2FA for the enrollment test, and a fresh
+ * case ready for outreach for the approval test. Runs the app code through tsx
+ * (it is ESM).
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 
 export const UNENROLLED_FILE = "test-results/.unenrolled-user.json";
+export const OUTREACH_CASE_FILE = "test-results/.outreach-case.json";
 
 export default function globalSetup() {
   const creds = {
@@ -20,4 +22,5 @@ export default function globalSetup() {
   );
   mkdirSync("test-results", { recursive: true });
   writeFileSync(UNENROLLED_FILE, JSON.stringify(creds));
+  execFileSync("npx", ["tsx", "--conditions=react-server", "tests/e2e/provision-outreach-case.ts", OUTREACH_CASE_FILE], { stdio: "inherit" });
 }

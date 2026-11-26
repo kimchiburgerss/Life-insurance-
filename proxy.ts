@@ -17,5 +17,8 @@ export const config = {
   // Everything except auth endpoints, the login page, static assets and health check.
   // /api/imports is excluded so large uploads are not truncated at the proxy
   // body-buffer limit (10 MB); that route checks the session itself.
-  matcher: ["/((?!api/auth|api/health|api/imports|login|_next/static|_next/image|favicon.ico|robots.txt).*)"],
+  // Public by design: /u/<token> and /api/unsubscribe/<token> (heirs opting out
+  // — the unguessable token is the credential) and /api/webhooks/* (verified
+  // by signature).
+  matcher: ["/((?!api/auth|api/health|api/imports|api/webhooks|api/unsubscribe|u/|login|_next/static|_next/image|favicon.ico|robots.txt).*)"],
 };

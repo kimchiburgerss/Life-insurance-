@@ -47,7 +47,7 @@ export async function createImportBatch(input: {
       headers: parsed.headers,
       previewRows: preview as never,
       rowCount: parsed.rows.length,
-      columnMapping: { fields: suggestMapping(parsed.headers), options: { nameOrder: "AUTO", dateOrder: "MDY" } },
+      columnMapping: { fields: suggestMapping(parsed.headers), options: { nameOrder: "AUTO", dateOrder: "MDY", caseFilter: "RELEVANT" } },
       createdById: input.createdById,
     },
   });

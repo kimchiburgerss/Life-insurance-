@@ -104,6 +104,17 @@ async function loadExistingOwners(db: DbClient, keys: string[], index: OwnerInde
   }
 }
 
+/** A record worth a case under the RELEVANT filter. */
+export function isRelevantRecord(r: NormalizedRecord): boolean {
+  return (
+    r.category === "LIFE_INSURANCE" ||
+    r.category === "ANNUITY" ||
+    r.category === "ESTATE" ||
+    r.holderIsLifeInsurer ||
+    r.hasDeceasedMarker
+  );
+}
+
 export type ImportSummary = {
   rowCount: number;
   insertedCount: number;
@@ -217,10 +228,18 @@ export async function processImportBatch(batchId: string, opts: { today?: Date }
       });
       for (const c of open) if (!openCaseByOwner.has(c.ownerId)) openCaseByOwner.set(c.ownerId, c.id);
     }
+    // Which owners get a case at all (RELEVANT keeps statewide lists manageable).
+    const relevantOwners = new Set<string>();
+    for (const [record, ownerId] of ownerForRecord) {
+      if (isRelevantRecord(record)) relevantOwners.add(ownerId);
+    }
     const caseForOwner = new Map<string, { id: string; isNew: boolean }>();
     for (const ownerId of new Set(ownerForRecord.values())) {
       const open = openCaseByOwner.get(ownerId);
-      caseForOwner.set(ownerId, open ? { id: open, isNew: false } : { id: randomUUID(), isNew: true });
+      if (open) caseForOwner.set(ownerId, { id: open, isNew: false });
+      else if (mapping.options.caseFilter === "ALL" || relevantOwners.has(ownerId)) {
+        caseForOwner.set(ownerId, { id: randomUUID(), isNew: true });
+      }
     }
 
     // 4. Write everything atomically
@@ -280,7 +299,7 @@ export async function processImportBatch(batchId: string, opts: { today?: Date }
             rawRecord: r.raw as never,
             importBatchId: batch.id,
             ownerId,
-            caseId: caseForOwner.get(ownerId)!.id,
+            caseId: caseForOwner.get(ownerId)?.id ?? null,
           };
         });
         for (let i = 0; i < propertyRows.length; i += CHUNK) await tx.property.createMany({ data: propertyRows.slice(i, i + CHUNK) });
