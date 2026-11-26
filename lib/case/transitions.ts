@@ -120,7 +120,8 @@ async function buildGuardContext(db: DbClient, caseId: string, today: Date): Pro
         status: { in: ["APPROVED", "FILED", "APPROVED_BY_STATE", "DENIED_BY_STATE", "MORE_INFO_REQUESTED"] },
       },
     }),
-    db.invoice.count({ where: { caseId, status: { not: "VOID" } } }),
+    // Only an approved, issued invoice counts (drafts don't).
+    db.invoice.count({ where: { caseId, status: { in: ["OPEN", "PAID"] }, approvalId: { not: null } } }),
     db.invoice.count({ where: { caseId, status: "PAID" } }),
   ]);
   return {

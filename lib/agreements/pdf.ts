@@ -65,7 +65,8 @@ export type RenderOptions = {
   markdown: string;
   draft: boolean;
   reference: string;
-  signature: SignatureBlock;
+  /** Omit for documents without signature blocks (e.g. a claim cover letter). */
+  signature?: SignatureBlock;
   createdAt: Date;
 };
 
@@ -75,7 +76,7 @@ const LEADING = 1.38;
 
 export async function renderAgreementPdf(opts: RenderOptions): Promise<{ bytes: Uint8Array; text: string; pages: number }> {
   assertPrintable("The agreement text", opts.markdown);
-  for (const [k, v] of Object.entries(opts.signature)) assertPrintable(k, v);
+  for (const [k, v] of Object.entries(opts.signature ?? {})) assertPrintable(k, v);
 
   const doc = await PDFDocument.create();
   doc.setTitle(opts.title);
@@ -209,10 +210,11 @@ export async function renderAgreementPdf(opts: RenderOptions): Promise<{ bytes: 
   }
 
   // Signature block (always last; kept together on one page).
+  const s = opts.signature;
+  if (s) {
   ensure(230);
   y -= 10;
   textLines.push("", paragraph([{ text: "Signatures", bold: true, italic: false }], SIZE.h2));
-  const s = opts.signature;
   const sigLine = (label: string, value: string, tag?: string) => {
     ensure(40);
     page.drawText(label, { x: PAGE.margin, y: y - SIZE.small, size: SIZE.small, font: fonts.regular, color: rgb(0.35, 0.35, 0.35) });
@@ -235,6 +237,7 @@ export async function renderAgreementPdf(opts: RenderOptions): Promise<{ bytes: 
   y -= SIZE.body * 1.8;
   sigLine("Signature", "", "[sig|req|signer1]");
   sigLine("Date", "", "[date|req|signer1]");
+  }
 
   // Footer, page numbers and DRAFT marking on every page.
   const pages = doc.getPages();

@@ -6,6 +6,12 @@ test("owner verifies a jurisdiction rule; the change is in the audit log", async
   await page.getByRole("link", { name: "Jurisdiction rules" }).click();
 
   const card = page.locator("section", { hasText: "NV · fee cap · v1" });
+  // An interrupted earlier run can leave the rule verified; start from "not verified".
+  const unverify = card.getByRole("button", { name: "Mark as not verified" });
+  if (await unverify.count()) {
+    await unverify.click();
+    await expect(card.getByRole("button", { name: "Mark as verified" })).toBeVisible();
+  }
   const note = `E2E check ${Date.now()}`;
   await card.getByLabel(/Note for the audit log/).fill(note);
   await card.getByRole("button", { name: "Mark as verified" }).click();

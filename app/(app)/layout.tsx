@@ -10,7 +10,10 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const [unread, approvalsWaiting] = await Promise.all([
     prisma.notification.count({ where: { userId: operator.id, readAt: null } }),
     prisma.communication.count({ where: { direction: "OUTBOUND", status: "PENDING_APPROVAL" } }),
-  ]).then(async ([u, comms]) => [u, comms + (await prisma.agreement.count({ where: { status: "PENDING_APPROVAL" } }))] as const);
+  ]).then(async ([u, comms]) => [u, comms +
+        (await prisma.agreement.count({ where: { status: "PENDING_APPROVAL" } })) +
+        (await prisma.claimPacket.count({ where: { status: "READY_FOR_REVIEW" } })) +
+        (await prisma.invoice.count({ where: { status: "DRAFT", approvalId: null } }))] as const);
   return (
     <div className="min-h-screen">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:bg-white focus:p-2">
@@ -40,6 +43,9 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             </Link>
             <Link href="/calendar" className="hover:underline">
               Calendar
+            </Link>
+            <Link href="/metrics" className="hover:underline">
+              Metrics
             </Link>
             <Link href="/imports" className="hover:underline">
               Imports

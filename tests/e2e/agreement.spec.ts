@@ -55,7 +55,7 @@ test("owner prepares and approves an agreement; the heir signs it and uploads a 
     await expect(heir.getByRole("link", { name: "Read the agreement (PDF)" })).toBeVisible();
 
     // Upload a document for the claim checklist.
-    await heir.getByLabel("Which document is this?").selectOption({ label: "Owner's death certificate" });
+    await heir.getByLabel("Which document is this?").selectOption("death_certificate");
     await heir.getByLabel(/File \(a PDF or a clear photo\)/).setInputFiles({ name: "death-certificate.pdf", mimeType: "application/pdf", buffer: PDF });
     await heir.getByRole("button", { name: "Upload document" }).click();
     await expect(heir.getByText("Thank you. We received your document.")).toBeVisible({ timeout: 30_000 });
@@ -78,7 +78,7 @@ test("owner prepares and approves an agreement; the heir signs it and uploads a 
     await page.goto(`/cases/${fx.caseId}`);
     await expect(page.getByText("Agreement Signed", { exact: true }).first()).toBeVisible();
     const docs = page.locator("section", { has: page.getByRole("heading", { name: /^Documents from heirs/ }) });
-    await expect(docs.getByText("Owner's death certificate")).toBeVisible();
+    await expect(docs.getByText(/^Owner's death certificate/)).toBeVisible();
     await docs.getByRole("button", { name: "Looks good" }).click();
     await expect(docs.getByText("accepted", { exact: true })).toBeVisible();
   } finally {

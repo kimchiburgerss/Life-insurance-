@@ -1,6 +1,6 @@
 # Security
 
-This file describes the security controls in place after **Phase 5** and what
+This file describes the security controls in place after **Phase 6** and what
 is still to come. The full security review is Phase 7.
 
 ## Controls in place
@@ -23,7 +23,7 @@ is still to come. The full security review is Phase 7.
 | Heir contact details | Stored only after an operator saves them; AES-256-GCM encrypted; the source evidence and audit entries record which fields were provided, never the values | `lib/research/service.ts` |
 | Outbound messages | Only `lib/outreach/gateway.ts` can reach the mail/email providers (enforced by a static test); it re-verifies the OWNER's approval of the exact content and re-runs the compliance checklist at send time. Database triggers refuse "sent" rows without a matching approval, edits after approval, and any change to an approval | `lib/outreach/gateway.ts`, `20261126080000_phase4_send_guards` |
 | Recipient data in messages | The recipient (name + address/email) is stored AES-256-GCM encrypted with each message; letter/email bodies hold only the heir's name. Approval snapshots hold the text, not the address. The tone check sends the text to the AI with names replaced by "[NAME]" | `lib/outreach/service.ts` |
-| Public endpoints | Only three: `/u/<token>` and `POST /api/unsubscribe/<token>` (opt-out; 16-character random token ≈ 79 bits, same response for unknown tokens, reveals nothing about the case) and `POST /api/webhooks/lob` (HMAC-SHA256 signature over timestamp + raw body with `LOB_WEBHOOK_SECRET`, 5-minute freshness window, 256 KB body limit, idempotent per event id). Everything else requires a 2FA session | `app/u`, `app/api/unsubscribe`, `app/api/webhooks/lob`, `proxy.ts` |
+| Public endpoints | Only these: `/u/<token>` and `POST /api/unsubscribe/<token>` (opt-out; 16-character random token ≈ 79 bits, same response for unknown tokens, reveals nothing about the case) and `POST /api/webhooks/lob` (HMAC-SHA256 signature over timestamp + raw body with `LOB_WEBHOOK_SECRET`, 5-minute freshness window, 256 KB body limit, idempotent per event id), the e-sign and Stripe webhooks (below), and the heir portal routes (portal session required). Everything else requires a 2FA session | `app/u`, `app/api/unsubscribe`, `app/api/webhooks/*`, `app/api/portal/*`, `proxy.ts` |
 | Email sending credentials | SMTP user/password and the Lob key live only in environment variables; Settings shows whether each is configured, never the value | `adapters/email`, `adapters/mail`, `app/(app)/settings` |
 | Letter preview | Rendered inside a sandboxed iframe (`sandbox=""`: no scripts, no same-origin access); all variable values are HTML- and Markdown-escaped and template HTML is dropped | `app/(app)/outreach/[id]/page.tsx`, `lib/outreach/render.ts` |
 | Documents at rest | Agreements, signed copies and heir uploads are encrypted with AES-256-GCM (per-file IV, key derived by HKDF from `PII_ENCRYPTION_KEY` for this purpose only) and stored in Postgres, so backups include them; each file's SHA-256 is checked on every read | `lib/files/crypto.ts`, `lib/files/storage.ts` |
@@ -31,6 +31,10 @@ is still to come. The full security review is Phase 7.
 | Uploads | Type decided by the file's bytes (PDF, JPEG, PNG, WebP, HEIC only), 15 MB limit, cleaned file names, 30 uploads/hour per heir; upload route excluded from the proxy's body buffer | `lib/files/sniff.ts`, `app/api/portal/documents` |
 | Heir portal | Unique link per heir (20 random characters ≈ 99 bits; stored as an HMAC plus an encrypted copy), expires (default 365 days) and can be revoked; opening it creates a 30-day httpOnly, SameSite=Lax session cookie (HMAC-stored) and removes the token from the address bar; link opening rate-limited to 30 per 10 minutes per IP, actions to 40 per hour per heir; the portal never shows uploaded documents back | `lib/portal/*`, `app/p/[token]`, `app/portal` |
 | E-sign webhook | Dropbox Sign events are verified (HMAC-SHA256 of event time + type with the API key) before anything is applied; idempotent per event | `adapters/esign/webhook.ts`, `app/api/webhooks/esign` |
+| Payments | Only `lib/billing/gateway.ts` can reach the payment provider (static test). Stripe is called over HTTPS with the secret key from the environment only; every call carries an idempotency key, so a retry can't create a second invoice. Card details never touch this app — the heir pays on Stripe's hosted invoice page | `adapters/payments/stripe.ts`, `lib/billing/gateway.ts` |
+| Stripe webhook | `POST /api/webhooks/stripe` verifies the `Stripe-Signature` header (HMAC-SHA256 of `timestamp.body` with `STRIPE_WEBHOOK_SECRET`, constant-time compare, 5-minute tolerance, any `v1` accepted during secret rotation) before parsing; 512 KB body limit; idempotent per event id; refuses with 503 when no secret is set | `adapters/payments/webhook.ts`, `app/api/webhooks/stripe` |
+| Document-review AI | With `MOCK_MODE=false`, the operator's **Check with AI** sends that one document (PDF or JPEG/PNG/WebP, ≤ 20 MB) and the case's names and dates to the Anthropic API. Nothing is sent automatically. The AI run log stores only the file's type, size and SHA-256, not its content; the prompt forbids transcribing SSNs or ID numbers and treats text inside the document as data, not instructions | `lib/claims/review.ts`, `prompts/claim-document-review.md` |
+| Claim packets | Assembled packets are stored encrypted like other documents. Operators open them through the signed, expiring file URL; an heir can download only their own packet, and only once it is approved (portal session required, audited) | `lib/claims/service.ts`, `app/api/files/[id]`, `app/api/portal/packets/[id]` |
 | Containers | Multi-stage image, non-root user, no build tools in the runtime image | `Dockerfile` |
 | Secrets | Only in environment variables / the host's secret store. `.env` is git-ignored | `.env.example` |
 
@@ -42,6 +46,7 @@ is still to come. The full security review is Phase 7.
 - **Malware scanning** of heir uploads is not done; uploads are limited to document/photo formats checked by their bytes and are never rendered inside the app's pages. Add a scanner (e.g. ClamAV) if volume grows.
 - **Object storage**: documents live encrypted in Postgres; move to S3-compatible storage (same interface in `lib/files/storage.ts`) if the database grows large.
 - A **Content-Security-Policy** with nonces (Phase 7).
+- **Restricted Stripe key**: the app needs only Customers and Invoices (write) and Invoice items (write); create a restricted key with just those instead of the full secret key (Phase 7 deployment guide).
 - **PII retention purge** for closed-lost cases, default 180 days (`Person.piiPurgedAt` is ready; job arrives with the background worker).
 - **Key rotation** for `PII_ENCRYPTION_KEY` (the `v1:` prefix allows it; tooling in Phase 7).
 - **Backups:** nightly `pg_dump` procedure and restore drill (Phase 7, `OPERATIONS.md`).

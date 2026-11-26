@@ -12,8 +12,9 @@
 //   if Better Auth is upgraded (see README "Upgrading Better Auth").
 
 generator client {
-  provider = "prisma-client"
-  output   = "../lib/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../lib/generated/prisma"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -267,12 +268,15 @@ enum NotificationKind {
   AGREEMENT_DECLINED
   DOCUMENT_UPLOADED
   PORTAL_ACTIVITY
+  CLAIM_UPDATE
+  INVOICE_PAID
 }
 
 enum ApprovalSubjectType {
   COMMUNICATION
   AGREEMENT
   CLAIM_PACKET
+  INVOICE
 }
 
 enum ApprovalDecision {
@@ -547,6 +551,8 @@ model Person {
   agreements             Agreement[]
   heirDocuments          HeirDocument[]
   portalAccesses         PortalAccess[]
+  claimPackets           ClaimPacket[]
+  invoices               Invoice[]
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
 
@@ -789,15 +795,30 @@ model ClaimPacket {
   id               String            @id @default(cuid())
   caseId           String
   case             Case              @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  /// [{ key, label, required, status, documentKey? }]
+  /// The heir who files (the claimant).
+  personId         String?
+  person           Person?           @relation(fields: [personId], references: [id])
+  /// Facts that decide which documents apply: { estatePath, hasWill, spouseClaimant, multipleHeirs }
+  facts            Json              @default("{}")
+  /// Per-item operator decisions: [{ key, status: "NOT_APPLICABLE" | "WAIVED", reason }]
   checklist        Json              @default("[]")
   status           ClaimPacketStatus @default(IN_PROGRESS)
+  /// StoredFile id of the assembled PDF (cover letter + documents, in order).
   assembledPdfKey  String?
+  /// [{ key, label, fileId, sha256, pages }] — exactly what went into the PDF.
+  assembledFrom    Json?
+  coverLetterText  String?
+  /// SHA-256 over the assembled PDF + claimant; the approval must hold the same hash.
+  contentHash      String?
   approvalId       String?
   filedAt          DateTime?
+  filedMethod      String?
   stateClaimNumber String?
   outcome          String?
   outcomeAt        DateTime?
+  outcomeNote      String?
+  events           Json              @default("[]")
+  createdById      String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
@@ -806,22 +827,44 @@ model ClaimPacket {
 }
 
 model Invoice {
-  id               String        @id @default(cuid())
-  caseId           String
-  case             Case          @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  amountCents      Int
-  currency         String        @default("usd")
-  status           InvoiceStatus @default(DRAFT)
-  stripeCustomerId String?
-  stripeInvoiceId  String?
-  paymentLinkUrl   String?
-  issuedAt         DateTime?
-  paidAt           DateTime?
-  remindersSent    Json          @default("[]")
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  id                    String        @id @default(cuid())
+  caseId                String
+  case                  Case          @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  /// The signed agreement this fee comes from (one invoice per signed agreement).
+  agreementId           String?
+  personId              String?
+  person                Person?       @relation(fields: [personId], references: [id])
+  /// What the State actually paid this heir (recorded from the heir's or the State's confirmation).
+  amountPaidToHeirCents Int?
+  paidToHeirAt          DateTime?     @db.Date
+  paymentEvidence       String?
+  feeBps                Int?
+  amountCents           Int
+  currency              String        @default("usd")
+  status                InvoiceStatus @default(DRAFT)
+  /// SHA-256 over recipient + amount + description; the approval must hold the same hash.
+  contentHash           String?
+  approvalId            String?
+  description           String?
+  provider              String?
+  stripeCustomerId      String?
+  stripeInvoiceId       String?
+  paymentLinkUrl        String?
+  dueDate               DateTime?     @db.Date
+  issuedAt              DateTime?
+  paidAt                DateTime?
+  /// [{ day, at }]
+  remindersSent         Json          @default("[]")
+  events                Json          @default("[]")
+  statusReason          String?
+  createdById           String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
 
   @@index([caseId])
+  @@index([stripeInvoiceId])
+  /// One live invoice per agreement; a voided one can be replaced (e.g. a mistyped amount).
+  @@unique([agreementId], map: "invoices_agreementId_live_key", where: raw("status <> 'VOID'"))
   @@map("invoices")
 }
 

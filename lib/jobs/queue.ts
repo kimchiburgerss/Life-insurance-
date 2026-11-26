@@ -17,6 +17,8 @@ export const QUEUES = {
   outreachDispatch: "outreach-dispatch",
   /** Daily: draft day-21 / day-45 follow-ups (each still needs an approval). */
   followUps: "outreach-follow-ups",
+  /** Daily: re-send unpaid online invoices at 7/14/30 days; flag unpaid manual ones. */
+  invoiceReminders: "invoice-reminders",
 } as const;
 
 const globalForBoss = globalThis as unknown as { boss?: Promise<PgBoss> };

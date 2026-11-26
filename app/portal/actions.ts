@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AgreementSendRefused, simulateMockSignature } from "@/lib/agreements/gateway";
+import { InvoiceSendRefused, simulateMockPayment } from "@/lib/billing/gateway";
 import { ForbiddenError } from "@/lib/auth/permissions";
 import { endPortalSession, PORTAL_COOKIE } from "@/lib/portal/access";
 import { enforceLimit, RateLimitedError } from "@/lib/portal/rate-limit";
@@ -21,7 +22,7 @@ async function run(fn: (ctx: NonNullable<Awaited<ReturnType<typeof currentPortal
     revalidatePath("/portal");
     return { ok };
   } catch (e) {
-    if (e instanceof PortalError || e instanceof RateLimitedError || e instanceof AgreementSendRefused || e instanceof ForbiddenError) return { error: e.message };
+    if (e instanceof PortalError || e instanceof RateLimitedError || e instanceof AgreementSendRefused || e instanceof InvoiceSendRefused || e instanceof ForbiddenError) return { error: e.message };
     throw e;
   }
 }
@@ -55,6 +56,13 @@ export async function demoSignAction(_: PortalActionState, fd: FormData) {
     if (!typed || typed !== expected) throw new PortalError("Type your full name exactly as it appears on the agreement.");
     await simulateMockSignature(String(fd.get("agreementId") ?? ""), ctx.personId);
     return "Signed. Thank you — you can download your copy below.";
+  });
+}
+
+export async function demoPayAction(_: PortalActionState, fd: FormData) {
+  return run(async (ctx) => {
+    await simulateMockPayment(String(fd.get("invoiceId") ?? ""), ctx.personId);
+    return "Paid. Thank you!";
   });
 }
 

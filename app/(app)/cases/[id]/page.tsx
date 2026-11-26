@@ -24,6 +24,7 @@ import { todayIn } from "@/lib/dates";
 import { FamilyTree } from "./family-tree";
 import { EvidencePanel, ExtractionReview, PeoplePanel, SummaryPanel, TracingPanel } from "./research-panels";
 import { AgreementsPanel, DocumentsPanel, PortalLinksPanel } from "./agreements-panel";
+import { BillingPanel, ClaimsPanel } from "./claims-panel";
 import { OutreachPanel } from "./outreach-panel";
 import { TransitionPanel } from "./transition-panel";
 
@@ -60,6 +61,10 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
     prisma.portalAccess.findMany({ where: { caseId: c.id, revokedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: "desc" } }),
     getActiveRule(prisma, c.stateCode, "FEE_CAP", todayIn()).catch(() => null),
     getOutreachSettings(),
+  ]);
+  const [packets, invoices] = await Promise.all([
+    prisma.claimPacket.findMany({ where: { caseId: c.id }, orderBy: { createdAt: "desc" }, include: { person: { select: { fullName: true } } } }),
+    prisma.invoice.findMany({ where: { caseId: c.id }, orderBy: { createdAt: "desc" }, include: { person: { select: { fullName: true } } } }),
   ]);
   const docFiles = await prisma.storedFile.findMany({ where: { id: { in: heirDocs.map((d) => d.fileId) } }, select: { id: true, fileName: true } });
   const claimRule = await getActiveRule(prisma, c.stateCode, "CLAIM_REQUIREMENTS", todayIn()).catch(() => null);
@@ -323,6 +328,27 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
         />
       </Card>
 
+      <Card title={`Claim (${packets.length})`}>
+        <ClaimsPanel
+          caseId={c.id}
+          canWrite={canWrite}
+          canStart={["AGREEMENT_SIGNED", "CLAIM_PACKET_PREPARED", "CLAIM_DENIED", "MORE_INFO_REQUESTED"].includes(c.stage)}
+          signedHeirs={agreements.filter((a) => a.status === "SIGNED").map((a) => ({ id: a.personId!, name: signerOf(a).name }))}
+          packets={packets.map((p) => ({ id: p.id, claimant: p.person?.fullName ?? "?", status: p.status, created: p.createdAt.toISOString().slice(0, 10), claimNumber: p.stateClaimNumber }))}
+        />
+      </Card>
+
+      <Card title={`Billing (${invoices.length})`}>
+        <BillingPanel
+          caseId={c.id}
+          canApprove={can(operator.role, "approval:decide")}
+          canRecord={["CLAIM_APPROVED", "PAID_TO_HEIR", "FEE_INVOICED", "FEE_COLLECTED"].includes(c.stage)}
+          today={todayIn().toISOString().slice(0, 10)}
+          agreements={agreements.filter((a) => a.status === "SIGNED").map((a) => ({ id: a.id, heir: signerOf(a).name, reference: agreementReference(a), hasInvoice: invoices.some((i) => i.agreementId === a.id && i.status !== "VOID") }))}
+          invoices={invoices.map((i) => ({ id: i.id, heir: i.person?.fullName ?? "?", amount: formatUsd(i.amountCents, { exact: true }), status: i.status, created: i.createdAt.toISOString().slice(0, 10) }))}
+        />
+      </Card>
+
       <Card title={`Documents from heirs (${heirDocs.length})`}>
         <DocumentsPanel
           canWrite={canWrite}
@@ -411,7 +437,7 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
           </table>
         </div>
         <p className="mt-3 text-xs text-slate-600">
-          The claim packet arrives on this page in Phase 6.
+          Claim packets and invoices are above.
         </p>
       </Card>
 

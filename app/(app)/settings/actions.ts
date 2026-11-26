@@ -123,3 +123,23 @@ export async function toggleAttorneyAgreementAction(_: ActionState, fd: FormData
   revalidatePath("/settings");
   return { ok: on ? "New agreements use the attorney-approved text (no DRAFT marking)." : "New agreements use the DRAFT text again." };
 }
+
+export async function saveUnitCostsAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const op = await requireOperator("rules:manage");
+  const { saveUnitCosts } = await import("@/lib/metrics/costs");
+  const cents = (k: string) => {
+    const v = String(fd.get(k) ?? "").replace(/[$,\s]/g, "");
+    return v === "" ? 0 : Math.round(Number(v) * 100);
+  };
+  const values = { perLetterCents: cents("perLetter"), perDataLookupCents: cents("perLookup"), perEsignCents: cents("perEsign"), monthlyHostingCents: cents("monthlyHosting") };
+  if (Object.values(values).some((v) => !Number.isFinite(v) || v < 0)) return { error: "Enter amounts in dollars, e.g. 1.25" };
+  try {
+    await saveUnitCosts(op, values);
+  } catch (e) {
+    if (e instanceof ZodError) return { error: zodMessage(e) };
+    throw e;
+  }
+  revalidatePath("/settings");
+  revalidatePath("/metrics");
+  return { ok: "Saved. Metrics use these costs." };
+}

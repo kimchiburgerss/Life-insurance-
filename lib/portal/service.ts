@@ -75,6 +75,13 @@ export async function portalView(ctx: PortalContext) {
     prisma.heirDocument.findMany({ where: { personId: ctx.personId, caseId: ctx.caseId }, orderBy: { createdAt: "desc" } }),
     prisma.agreement.findMany({ where: { personId: ctx.personId, caseId: ctx.caseId, status: { in: ["SENT", "SIGNED"] } }, orderBy: { createdAt: "desc" } }),
   ]);
+  const [packet, invoices] = await Promise.all([
+    prisma.claimPacket.findFirst({
+      where: { personId: ctx.personId, caseId: ctx.caseId, status: { in: ["APPROVED", "FILED", "APPROVED_BY_STATE", "DENIED_BY_STATE", "MORE_INFO_REQUESTED"] } },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.invoice.findMany({ where: { personId: ctx.personId, caseId: ctx.caseId, status: { in: ["OPEN", "PAID"] } }, orderBy: { createdAt: "desc" } }),
+  ]);
   const [disclosure, claimRule] = await Promise.all([
     getActiveRule(prisma, c.stateCode, "DISCLOSURE_TEXT", today),
     getActiveRule(prisma, c.stateCode, "CLAIM_REQUIREMENTS", today).catch(() => null),
@@ -115,6 +122,22 @@ export async function portalView(ctx: PortalContext) {
       esignVendor: a.esignProvider === "dropbox-sign" ? "Dropbox Sign" : null,
     })),
     esignMock: esign.mock,
+    claim: packet
+      ? { packetId: packet.id, status: packet.status, filedAt: packet.filedAt?.toISOString().slice(0, 10) ?? null, claimNumber: packet.stateClaimNumber, outcome: packet.outcome, outcomeNote: packet.outcome === "MORE_INFO" ? packet.outcomeNote : null }
+      : null,
+    claimSiteUrl: claimRule?.params.filing?.onlineUrl ?? disclosure.params.claimWebsite,
+    invoices: invoices.map((i) => ({
+      id: i.id,
+      amountCents: i.amountCents,
+      paidToHeirCents: i.amountPaidToHeirCents,
+      feeBps: i.feeBps,
+      status: i.status,
+      dueDate: i.dueDate?.toISOString().slice(0, 10) ?? null,
+      paidAt: i.paidAt?.toISOString().slice(0, 10) ?? null,
+      payUrl: i.paymentLinkUrl,
+      demoPay: i.status === "OPEN" && i.provider === "mock-payments",
+      manual: i.provider === "manual",
+    })),
   };
 }
 
@@ -199,6 +222,15 @@ export async function heirAgreementFile(ctx: PortalContext, agreementId: string,
   const file = await readFile(key);
   if (!file) return null;
   await writeAudit(prisma, { actor: heir(ctx), action: "portal.agreement_downloaded", entityType: "Agreement", entityId: a.id, after: { kind } });
+  return file;
+}
+
+/** The heir's approved claim packet (their own documents, ready to file). */
+export async function heirPacketFile(ctx: PortalContext, packetId: string) {
+  const p = await prisma.claimPacket.findUnique({ where: { id: packetId } });
+  if (!p || p.personId !== ctx.personId || p.caseId !== ctx.caseId || !p.assembledPdfKey || !["APPROVED", "FILED", "APPROVED_BY_STATE", "DENIED_BY_STATE", "MORE_INFO_REQUESTED"].includes(p.status)) return null;
+  const file = await readFile(p.assembledPdfKey);
+  if (file) await writeAudit(prisma, { actor: heir(ctx), action: "portal.packet_downloaded", entityType: "ClaimPacket", entityId: p.id });
   return file;
 }
 

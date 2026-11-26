@@ -86,6 +86,71 @@ Until then every page says DRAFT, and real e-signature requests stay in Dropbox 
   Call back from your own phone; never use automated calls or texts.
 - If a document shows a Social Security number, ask the heir for a copy with it covered; we never need it.
 
+## Building and filing a claim
+
+The heir is the claimant: they complete and sign the State's claim form. We prepare everything else,
+check it, and keep the case moving. The checklist comes from the Nevada `CLAIM_REQUIREMENTS` rule
+(verify it in **Jurisdiction rules** — the form numbers and thresholds are from the Treasurer's
+published guidance and ship unverified).
+
+1. **Start the packet** (case → Claim → *Start claim packet*) once the agreement is signed.
+2. **Answer the estate questions.** Ask the heir (or their attorney):
+   - Was the owner's estate probated, or is the whole estate small enough for an affidavit? (Nevada
+     small-estate thresholds per the Treasurer's guidance: $25,000, or $100,000 when the claimant is the
+     surviving spouse.) Small estate → UP-45 (UP-47 for a spouse). Probate → certified letters from the court.
+   - Was there a will or trust? No → affidavit of heirship (UP-40). Yes → a copy of the will or trust.
+   - Are there other heirs who must release their share to this claimant? Yes → a release (UP-43) from each.
+   Leave a question on *Not confirmed yet* rather than guessing — the documents it controls stay
+   visible as *undecided* and the packet can't be assembled until you answer.
+3. **Collect documents.** Ask the heir to upload them on their page, or upload what they mail or email
+   you (*Upload for the heir*). For each one: open it, optionally **Check with AI**, then **Accept** or
+   **Ask for a new copy** (with a note the heir will see). Check especially: the owner's name and date of
+   death match the case; affidavits are signed and notarized; the claimant's ID is current and their
+   name matches.
+4. If a required document truly isn't needed (e.g. the State told you so), mark it **Not needed** with
+   the reason; **Waive** is for the OWNER and is logged.
+5. **Assemble packet PDF**, read every page (cover letter, then each document, labelled at the
+   bottom), tick the box and **Approve packet**. If anything changes after that, start a new packet.
+6. **Filing.** Online: sit with the heir (phone or video) while they complete and sign the claim at
+   claims.nevadaunclaimedproperty.gov and upload the packet's documents; note the claim ID the site
+   gives. On paper: the heir signs the claim form (notarized for claims of $500 or more), and you mail
+   it with the printed packet to the Unclaimed Property Division (address on the cover letter) by a
+   trackable service. Then **Record the filing**. The case moves to **Claim filed**.
+7. **The State's decision.** When the heir or the State tells you, **Record the State's decision**:
+   - *Approved* → case **Claim approved**. The State pays the heir directly.
+   - *More information needed* → note exactly what they asked for. Start a new packet with the extra
+     documents, approve it, and record the new filing; the case returns to **Claim filed**.
+   - *Denied* → note the reason. Decide with the heir whether to fix and refile (start a new packet;
+     approving it moves the case back to **Claim packet prepared**) or close the case as **Closed
+     ineligible** with the reason.
+
+## Fee invoices and getting paid
+
+1. **Only after the heir has the money.** When the heir (or the State) confirms the payment, open the
+   case → **Billing**, pick the agreement, enter the amount the State paid, the date, and how you know
+   (e.g. "Heir emailed a photo of the State's check stub"). The case moves to **Paid to heir** and a
+   draft invoice is prepared: the agreement's percentage of that amount, rounded down to the cent.
+2. **Approve the invoice** (Approvals, or the invoice page). Check the name, the email, the amount and
+   the text. Choose:
+   - **Stripe** — the heir receives an email with a secure payment page (card or bank). Needs an email
+     address on file.
+   - **Manual** — you send the invoice yourself (letter or email) and record the payment when it
+     arrives.
+   The case moves to **Fee invoiced**.
+3. **Reminders** go out automatically on days 7, 14 and 30 after sending (Stripe re-sends the same
+   invoice). For manual invoices you get a notification instead — send a short, kind note yourself.
+   Never add late fees or pressure, and never call or text about the fee unless the heir asked you to.
+4. **Paid.** Stripe payments are recorded automatically from the webhook. For checks or bank transfers,
+   **Mark as paid** with the date and a note. When nothing is left open the case moves to **Fee
+   collected**.
+5. **Close the case**: case page → move to **Closed won**.
+6. **Mistakes and disputes.** If the amount paid was entered wrongly, or the heir disputes it and they
+   are right, **Void** the invoice (an open Stripe invoice is withdrawn) and record the payment again
+   with the corrected figures; a new invoice is prepared for approval. A paid invoice can't be voided —
+   refund in Stripe and note it on the case.
+7. **Metrics**: keep your unit costs current in **Settings → Your costs** (per letter, per lookup, per
+   e-signature, monthly hosting) so cost per case and break-even are real numbers.
+
 ## Opt-outs and the do-not-contact list
 
 - **Opt-out link** (in every letter and email) and the email one-click unsubscribe take effect
@@ -120,3 +185,10 @@ since approval (opt-out, reply, rule unverified), the gateway refuses to send an
 4. Email: create an app password for your business mailbox and set `SMTP_*`. Keep volume low.
 5. Set `PUBLIC_APP_URL` to the public HTTPS address (opt-out links must work without logging in).
 6. Set `MOCK_MODE=false`, then send one letter to yourself first.
+7. Stripe: set `STRIPE_SECRET_KEY` (start with a test key; a restricted key is better) and add a webhook
+   endpoint `<PUBLIC_APP_URL>/api/webhooks/stripe` for the `invoice.paid`, `invoice.voided`,
+   `invoice.marked_uncollectible` and `invoice.payment_failed` events; put its signing secret in
+   `STRIPE_WEBHOOK_SECRET`. Turn off Stripe's own invoice reminder emails (the app sends the 7/14/30-day
+   reminders itself). Send one test invoice to yourself first.
+8. Verify the `CLAIM_REQUIREMENTS` rule against the Treasurer's current claim instructions (forms
+   UP-40/43/45/47, thresholds, notarization) and mark it verified in **Jurisdiction rules**.

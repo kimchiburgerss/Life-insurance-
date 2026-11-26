@@ -16,6 +16,10 @@ export default async function ApprovalsPage() {
     orderBy: { createdAt: "asc" },
     include: { case: { select: { caseNumber: true, stateCode: true, owner: { select: { fullName: true } } } } },
   });
+  const [packetsWaiting, invoicesWaiting] = await Promise.all([
+    prisma.claimPacket.findMany({ where: { status: "READY_FOR_REVIEW" }, include: { person: { select: { fullName: true } }, case: { select: { caseNumber: true, stateCode: true } } } }),
+    prisma.invoice.findMany({ where: { status: "DRAFT" }, include: { person: { select: { fullName: true } }, case: { select: { caseNumber: true, stateCode: true } } } }),
+  ]);
   const [waiting, scheduled, failed, recent] = await Promise.all([
     prisma.communication.findMany({
       where: { direction: "OUTBOUND", status: { in: ["PENDING_APPROVAL", "DRAFT"] } },
@@ -113,6 +117,26 @@ export default async function ApprovalsPage() {
                 </li>
               );
             })}
+          </ul>
+        )}
+      </Card>
+
+      <Card title={`Claim packets and invoices waiting (${packetsWaiting.length + invoicesWaiting.length})`}>
+        {packetsWaiting.length + invoicesWaiting.length === 0 ? (
+          <p className="text-sm text-slate-600">None.</p>
+        ) : (
+          <ul className="space-y-1 text-sm">
+            {packetsWaiting.map((p) => (
+              <li key={p.id}>
+                <Link href={`/claims/${p.id}`} className="font-medium underline">Claim packet — {caseRef(p.case.caseNumber, p.case.stateCode)}, {p.person?.fullName}</Link>
+              </li>
+            ))}
+            {invoicesWaiting.map((i) => (
+              <li key={i.id}>
+                <Link href={`/invoices/${i.id}`} className="font-medium underline">Invoice ${(i.amountCents / 100).toFixed(2)} — {caseRef(i.case.caseNumber, i.case.stateCode)}, {i.person?.fullName}</Link>{" "}
+                {i.approvalId ? <Badge tone="bad">approved, not sent</Badge> : null}
+              </li>
+            ))}
           </ul>
         )}
       </Card>

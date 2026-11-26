@@ -196,6 +196,83 @@ export const NEVADA_RULES: RuleSeed[] = [
   } satisfies RuleSeed<"CLAIM_REQUIREMENTS">,
   {
     stateCode: "NV",
+    ruleType: "CLAIM_REQUIREMENTS",
+    version: 3,
+    params: {
+      checklist: [
+        {
+          key: "claim_form",
+          label: "Claim form completed and signed by the heir (the claimant) on the State's claim site — notarized if the claim is $500 or more",
+          required: true,
+        },
+        { key: "claimant_id", label: "Claimant's government-issued photo ID", required: true },
+        { key: "death_certificate", label: "Owner's death certificate (certified copy)", required: true },
+        { key: "relationship_proof", label: "Proof of relationship to the owner (birth or marriage certificates)", required: true },
+        {
+          key: "small_estate_affidavit",
+          label: "Small Estate Affidavit, signed and notarized by each heir",
+          form: "UP-45",
+          required: true,
+          appliesWhen: ["SMALL_ESTATE", "NOT_SPOUSE_CLAIMANT"],
+          condition: "Whole estate $25,000 or less, not probated",
+        },
+        {
+          key: "spouse_small_estate_affidavit",
+          label: "Small Estate Affidavit for a surviving spouse, notarized",
+          form: "UP-47",
+          required: true,
+          appliesWhen: ["SMALL_ESTATE", "SPOUSE_CLAIMANT"],
+          condition: "Surviving spouse; whole estate $100,000 or less, not probated",
+        },
+        {
+          key: "affidavit_of_heirship",
+          label: "Affidavit of Heirship, notarized",
+          form: "UP-40",
+          required: true,
+          appliesWhen: ["SMALL_ESTATE", "NO_WILL"],
+          condition: "No will or trust",
+        },
+        { key: "will_or_trust", label: "Copy of the will or trust", required: true, appliesWhen: ["SMALL_ESTATE", "HAS_WILL"], condition: "When there is a will or trust" },
+        {
+          key: "probate_documents",
+          label: "Probate court documents (letters testamentary or of administration)",
+          required: true,
+          appliesWhen: ["PROBATE"],
+          condition: "Whole estate over $25,000 ($100,000 for a surviving spouse), or probate was opened",
+        },
+        {
+          key: "release_of_heir",
+          label: "Affidavit of Release by Heir from each other heir, notarized, with a copy of their driver's license",
+          form: "UP-43",
+          required: true,
+          appliesWhen: ["MULTIPLE_HEIRS"],
+          condition: "When one heir claims on behalf of the others",
+        },
+        { key: "agreement_copy", label: "Signed recovery agreement (our file only — the State is not a party)", required: true, inPacket: false },
+      ],
+      notarizationThresholdCents: 50_000,
+      powerOfAttorneyAccepted: false,
+      statePaysClaimantOnly: true,
+      smallEstateAffidavitMaxCents: 2_500_000,
+      smallEstateAffidavitSpouseMaxCents: 10_000_000,
+      filing: {
+        onlineUrl: "https://claims.nevadaunclaimedproperty.gov",
+        mailingAddress: ["Office of the Nevada State Treasurer", "Unclaimed Property Division", "555 E Washington Ave, Suite 5200", "Las Vegas, NV 89101"],
+      },
+    },
+    effectiveFrom: "2021-10-01",
+    enabled: true,
+    sourceCitation:
+      "Nevada Treasurer UP-9 Claim Instruction Sheet and UP-23 Fact Sheet (deceased owner claims), as quoted in search results; Heir Finder FAQ (Feb 2022)",
+    sourceUrl: "https://www.nevadatreasurer.gov/uploadedFiles/treasurer.nv.gov/content/Unclaimed_Property/Forms/Claimant/UP-9_Claim_Instruction_Sheet.pdf",
+    notes:
+      "Per the Treasurer's instructions: certified death certificate; probate documents if the WHOLE estate is over $25,000 ($100,000 for a surviving " +
+      "spouse); otherwise UP-45 small estate affidavit (UP-47 for a spouse), UP-40 affidavit of heirship if there is no will or trust, and the will/trust " +
+      "if there is one; UP-43 Affidavit of Release by Heir lets one heir claim for the others; notarization for claims of $500 and over. Claims are filed " +
+      "online with documents uploaded to the claim, or mailed. The official PDFs could not be fetched from the build sandbox — verify the current forms.",
+  } satisfies RuleSeed<"CLAIM_REQUIREMENTS">,
+  {
+    stateCode: "NV",
     ruleType: "INTESTATE_SUCCESSION",
     version: 1,
     params: {

@@ -17,6 +17,7 @@ import { describe, expect, it } from "vitest";
 const ROOTS = ["app", "lib", "adapters", "scripts", "prisma", "components", "proxy.ts", "instrumentation.ts"];
 const GATEWAY = "lib/outreach/gateway.ts";
 const AGREEMENT_GATEWAY = "lib/agreements/gateway.ts";
+const BILLING_GATEWAY = "lib/billing/gateway.ts";
 
 function sourceFiles(): string[] {
   const out: string[] = [];
@@ -101,9 +102,20 @@ describe("rule 7 — the send gateway is the only way out", () => {
     expect(sent).toEqual([]);
   });
 
+  it("only the billing gateway imports a payments provider, calls Stripe, or marks an invoice sent", () => {
+    const PAY_IMPORT = /from\s+["']@\/adapters\/payments(?:\/(?:index|mock|stripe))?["']|import\(\s*["']@\/adapters\/payments(?:\/(?:index|mock|stripe))?["']\s*\)/;
+    expect(files.filter((f) => !f.file.startsWith("adapters/payments/")).filter((f) => PAY_IMPORT.test(f.text)).map((f) => f.file)).toEqual([BILLING_GATEWAY]);
+    expect(files.filter((f) => !f.file.startsWith("adapters/")).filter((f) => /api\.stripe\.com|getPaymentsProvider\(/.test(f.text) && f.file !== BILLING_GATEWAY).map((f) => f.file)).toEqual([]);
+    const opened = files
+      .filter((f) => f.file !== BILLING_GATEWAY)
+      .filter((f) => /\.invoice\.(?:update|updateMany|create)\(/.test(f.text) && /data:\s*\{[^}]*status:\s*["']OPEN["']/.test(f.text))
+      .map((f) => f.file);
+    expect(opened).toEqual([]);
+  });
+
   it("approvals are created only by the outreach and agreement services (and the demo seed's shortcut)", () => {
     const offenders = files
-      .filter((f) => !["lib/outreach/service.ts", "lib/agreements/service.ts", "prisma/seed.ts"].includes(f.file))
+      .filter((f) => !["lib/outreach/service.ts", "lib/agreements/service.ts", "lib/claims/service.ts", "lib/billing/service.ts", "prisma/seed.ts"].includes(f.file))
       .filter((f) => /\.approval\.create\(/.test(f.text))
       .map((f) => f.file);
     expect(offenders).toEqual([]);

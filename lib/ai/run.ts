@@ -17,7 +17,7 @@ import { redactSsnLike } from "@/lib/crypto/pii";
 import { prisma, type DbClient } from "@/lib/db";
 import { costMicros, type TokenUsage } from "./pricing";
 import { loadPrompt } from "./prompts";
-import { AiRefusedError, callClaude, DEFAULT_MODEL, type ProviderResult } from "./provider";
+import { AiRefusedError, callClaude, DEFAULT_MODEL, type Attachment, type ProviderResult } from "./provider";
 
 export class AiOutputError extends Error {}
 
@@ -56,6 +56,11 @@ export type RunOptions<S extends z.ZodType> = {
   entityType?: string;
   entityId?: string;
   db?: DbClient;
+  /**
+   * Documents the model reads (e.g. an uploaded death certificate). Only their
+   * type, size and SHA-256 are logged in the AiRun, never the content.
+   */
+  attachments?: Attachment[];
 };
 
 export type RunResult<T> = { runId: string; output: T; costMicros: number; model: string };
@@ -63,11 +68,17 @@ export type RunResult<T> = { runId: string; output: T; costMicros: number; model
 export async function runPrompt<S extends z.ZodType>(opts: RunOptions<S>): Promise<RunResult<z.infer<S>>> {
   const db = opts.db ?? prisma;
   const prompt = loadPrompt(opts.promptName);
-  const redacted = redactInput(opts.input);
+  const attachmentLog = (opts.attachments ?? []).map((a) => ({
+    kind: a.kind,
+    mediaType: a.mediaType,
+    bytes: Math.floor((a.base64.length * 3) / 4),
+    sha256: createHash("sha256").update(a.base64).digest("hex"),
+  }));
+  const redacted = attachmentLog.length ? { ...redactInput(opts.input), attachments: attachmentLog } : redactInput(opts.input);
   const inputHash = createHash("sha256")
     .update(`${prompt.name}@${prompt.version}\n${stableStringify(redacted)}`)
     .digest("hex");
-  const baseContent = `Input (JSON):\n${JSON.stringify(redacted, null, 2)}`;
+  const baseContent = `Input (JSON):\n${JSON.stringify(redactInput(opts.input), null, 2)}`;
   const requestedModel = aiMockMode() ? "mock" : process.env.AI_MODEL || DEFAULT_MODEL;
 
   const record = (
@@ -109,7 +120,7 @@ export async function runPrompt<S extends z.ZodType>(opts: RunOptions<S>): Promi
   for (let attempt = 1; attempt <= 2; attempt++) {
     let result: ProviderResult;
     try {
-      result = await callClaude(prompt, opts.schema, content);
+      result = await callClaude(prompt, opts.schema, content, undefined, opts.attachments ?? []);
     } catch (e) {
       await record("FAILED", requestedModel, [], null, e instanceof Error ? e.message : String(e));
       throw e;

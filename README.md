@@ -4,9 +4,9 @@ An operator console that lets one person do the research, matching, drafting
 and case management of a small heir-finding firm. A human stays in the loop for
 every outbound contact and every legal document.
 
-> **Status: Phase 5 (Agreements & heir portal) complete.** See [Build phases](#build-phases).
+> **Status: Phase 6 (Claims & billing) complete.** See [Build phases](#build-phases).
 > Compliance rules and where they are enforced: [COMPLIANCE.md](COMPLIANCE.md).
-> Security controls: [SECURITY.md](SECURITY.md). Day-to-day procedures (approvals, calls, opt-outs):
+> Security controls: [SECURITY.md](SECURITY.md). Day-to-day procedures (approvals, calls, opt-outs, filing claims, invoices):
 > [OPERATIONS.md](OPERATIONS.md). Research findings and open legal questions: [ASSUMPTIONS.md](ASSUMPTIONS.md).
 
 ## Quick start (demo, mock mode)
@@ -187,6 +187,33 @@ Until you upload your attorney's version in **Settings → Agreements** and swit
 "DRAFT — must be reviewed by a licensed attorney before use". The demo seed prints a portal link for a
 case at Responded so you can try the heir's side.
 
+## Claims, fees and metrics
+
+1. Once the agreement is signed, open the case → **Claim** → **Start claim packet** for that heir.
+2. Answer the estate questions (small estate or probate, will or no will; spouse and other heirs are
+   filled in from the family research). The checklist then shows exactly which documents the State
+   needs — e.g. the small-estate affidavit (UP-45, or UP-47 for a spouse), affidavit of heirship (UP-40)
+   when there is no will, release by other heirs (UP-43). Anything that depends on an unanswered
+   question stays *undecided* and blocks the packet.
+3. Documents come from the heir's portal uploads, or you upload them for the heir. **Check with AI**
+   reads a document and flags a wrong type, an unreadable copy, a name or date of death that doesn't
+   match the case, or a missing notarization — a suggestion only; you **Accept** or **Ask for a new
+   copy** yourself.
+4. **Assemble packet PDF**: a cover letter, then every accepted document in order, each page labelled.
+   Read every page and **Approve packet**. The heir can download it from their page.
+5. The heir completes and signs the State's claim form (online at claims.nevadaunclaimedproperty.gov, or
+   on paper and mailed with the packet). **Record the filing** (date, how, the State's claim ID), and
+   later **Record the State's decision** (approved, denied, or more information needed).
+6. When the State has paid the heir, **Billing** → record the amount paid and how you know. The app
+   prepares the invoice for the agreed percentage of *that* amount (rounded down, never above the
+   agreement's cap). Approve it to send by Stripe (the heir gets a payment link by email) or manually.
+   Polite reminders go out on days 7, 14 and 30. When it's paid the case moves to **Fee collected**.
+7. **Metrics**: funnel from import to paid, revenue collected and outstanding, average days to payment,
+   AI and per-unit costs per case, response rate per letter template, and break-even cases per month.
+   Enter your real costs (per letter, per lookup, per e-signature, monthly hosting) in **Settings**.
+
+In mock mode Stripe is replaced by an in-memory mock, and the heir's page shows **Pay invoice (demo)**.
+
 ## Deployment (summary; full guide in Phase 7)
 
 - Any host that runs a Docker image and offers managed Postgres works (Render,
@@ -195,7 +222,8 @@ case at Responded so you can try the heir's side.
 - Set `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (your HTTPS URL),
   `PII_ENCRYPTION_KEY`, `PII_HMAC_KEY` and `MOCK_MODE` in the host's secret store; for outreach also
   `PUBLIC_APP_URL`, `LOB_API_KEY`, `LOB_WEBHOOK_SECRET` and `SMTP_*`; for agreements `DROPBOX_SIGN_API_KEY`
-  (and `DROPBOX_SIGN_TEST_MODE=false` only once the attorney-approved agreement is switched on).
+  (and `DROPBOX_SIGN_TEST_MODE=false` only once the attorney-approved agreement is switched on); for
+  invoices `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` (webhook URL `<PUBLIC_APP_URL>/api/webhooks/stripe`).
 - Health check: `GET /api/health`.
 - Create the first operator with `npm run user:create` from a shell that can
   reach the production database. Never seed demo data in production.
@@ -207,7 +235,7 @@ case at Responded so you can try the heir's side.
 3. **Research**: done. Death-record source adapter (demo source; licensed vendors plug in), evidence with citations, AI obituary extraction (suggestion → human accept) with an "is this our owner?" confidence breakdown, family tree, Nevada intestate helper (research aid), heir candidates with duplicate review, people-search adapter with permissible-purpose confirmation and encrypted contact storage, AI research summaries and tracing-difficulty estimates (feed the score), AI cost per case, waiting-period auto-advance, nightly unlock job with notifications, calendar.
 4. **Outreach**: done. Markdown letter/email templates (first contact, day-21, day-45, public-records FAQ insert) that must contain every required element; safe renderer; AI personal note + AI tone check (with eval set) + banned-terms lint + exact-amount check + reading level; compliance checklist; approval queue with side-by-side preview, edit and reject; single send gateway (Lob letters, SMTP email, mocks) backed by database triggers; auto-move to Contacted; follow-up scheduler; reply/opt-out stop rules; do-not-contact list across cases; one-click unsubscribe; Lob delivery webhooks; Settings (business profile, fee, counsel sign-off, service status); Today view shows approvals and follow-ups due.
 5. **Agreements & portal**: done. Agreement PDF generated from case data with rule validation (fee-cap refusal, void period, exact values, required terms), DRAFT marking until an attorney-approved version is uploaded and switched on, OWNER approval of the exact PDF, single e-sign gateway (Dropbox Sign + mock) with verified webhooks, paper-signature path, automatic Agreement sent/signed stages; heir portal (unique link in every letter, sessions, rate limits, free-claim first, status, messages, call requests, email capture, encrypted document uploads, agreement view and demo signing, large-text option); operator review of uploads; portal link management.
-6. Claims & billing: claim packet builder, document-review AI, Stripe invoicing, revenue metrics.
+6. **Claims & billing**: done. Claim packet builder driven by `CLAIM_REQUIREMENTS` v3 (Nevada forms chosen from the estate facts, nothing dropped silently, waivers OWNER-only), operator uploads, AI document review (PDF and photos; name/date/notarization checks against the case; suggestion only), one assembled PDF (cover letter + labelled enclosures) approved by the OWNER and frozen by a database trigger, filing and State-decision tracking with notifications, heir download in the portal; fee invoices computed from the amount the State actually paid, OWNER approval of the exact invoice, single payments gateway (Stripe Invoicing + mock + manual), 7/14/30-day reminders, verified Stripe webhooks, automatic Paid-to-heir / Fee invoiced / Fee collected stages; Metrics page (funnel, revenue, costs per case, response rates, break-even) with unit-cost settings.
 7. Hardening: security review, accessibility pass, full E2E suite, deployment guide, `OPERATIONS.md`.
 
 ## Upgrading Better Auth

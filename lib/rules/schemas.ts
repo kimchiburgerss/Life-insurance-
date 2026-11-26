@@ -57,6 +57,21 @@ export const AgreementRequirementsParams = z.object({
 });
 export type AgreementRequirementsParams = z.infer<typeof AgreementRequirementsParams>;
 
+/**
+ * When a checklist item applies (all listed tags must hold). Evaluated from the
+ * claim packet's facts by lib/claims/checklist.ts; no tags = always.
+ */
+export const ClaimApplicability = z.enum([
+  "SMALL_ESTATE",
+  "PROBATE",
+  "SPOUSE_CLAIMANT",
+  "NOT_SPOUSE_CLAIMANT",
+  "NO_WILL",
+  "HAS_WILL",
+  "MULTIPLE_HEIRS",
+]);
+export type ClaimApplicability = z.infer<typeof ClaimApplicability>;
+
 export const ClaimRequirementsParams = z.object({
   checklist: z
     .array(
@@ -65,6 +80,11 @@ export const ClaimRequirementsParams = z.object({
         label: z.string(),
         required: z.boolean(),
         condition: z.string().optional(),
+        /** State form number, e.g. "UP-45". */
+        form: z.string().optional(),
+        appliesWhen: z.array(ClaimApplicability).optional(),
+        /** false = kept in our case file only (e.g. our agreement — the State is not a party). */
+        inPacket: z.boolean().optional(),
       }),
     )
     .min(1),
@@ -75,6 +95,8 @@ export const ClaimRequirementsParams = z.object({
   /** Small-estate affidavit ceilings; above these, letters of administration (probate) are needed. */
   smallEstateAffidavitMaxCents: z.number().int().min(0).optional(),
   smallEstateAffidavitSpouseMaxCents: z.number().int().min(0).optional(),
+  /** Where claims are filed and documents sent. */
+  filing: z.object({ onlineUrl: z.string().url(), mailingAddress: z.array(z.string()).min(1) }).optional(),
 });
 export type ClaimRequirementsParams = z.infer<typeof ClaimRequirementsParams>;
 

@@ -3,7 +3,8 @@ import { formatPostalAddress, getBusinessProfile } from "@/lib/outreach/settings
 import { portalView } from "@/lib/portal/service";
 import { currentPortal } from "@/lib/portal/session";
 import { signOutAction } from "./actions";
-import { CallForm, DemoSignForm, EmailForm, MessageForm, StopContactForm, UploadForm } from "./portal-forms";
+import { CallForm, DemoPayForm, DemoSignForm, EmailForm, MessageForm, StopContactForm, UploadForm } from "./portal-forms";
+import { formatExactUsd } from "@/lib/outreach/content";
 
 export const dynamic = "force-dynamic";
 
@@ -140,6 +141,52 @@ export default async function PortalPage({ searchParams }: PageProps<"/portal">)
                     </p>
                   )}
                 </>
+              )}
+            </div>
+          ))}
+        </Section>
+      ) : null}
+
+      {v.claim ? (
+        <Section title="Your claim" id="claim">
+          {v.claim.status === "APPROVED" ? (
+            <p>
+              Your claim documents are ready. Next, the claim is filed with the State — you sign the State&apos;s claim form yourself (online at{" "}
+              <a className="font-medium underline" href={v.claimSiteUrl} rel="noopener noreferrer">{v.claimSiteUrl.replace("https://", "")}</a>). We will walk you through it.
+            </p>
+          ) : v.claim.status === "FILED" ? (
+            <p>Your claim was filed with the State on {v.claim.filedAt}{v.claim.claimNumber ? ` (claim ID ${v.claim.claimNumber})` : ""}. The State reviews it and pays you directly.</p>
+          ) : v.claim.outcome === "APPROVED" ? (
+            <p>Good news: the State approved your claim. The State pays you directly.</p>
+          ) : v.claim.outcome === "MORE_INFO" ? (
+            <p>The State asked for more information{v.claim.outcomeNote ? `: ${v.claim.outcomeNote}` : ""}. We will help you with it — you can upload documents below.</p>
+          ) : (
+            <p>The State did not approve the claim. We will contact you about what can be done.</p>
+          )}
+          <p>
+            <a className="font-medium underline" href={`/api/portal/packets/${v.claim.packetId}`}>Download your claim documents (PDF)</a>
+          </p>
+        </Section>
+      ) : null}
+
+      {v.invoices.length ? (
+        <Section title="Our fee" id="fee">
+          {v.invoices.map((i) => (
+            <div key={i.id} className="space-y-2">
+              <p>
+                The State paid you {i.paidToHeirCents != null ? formatExactUsd(i.paidToHeirCents) : "the claim"}. Our fee, as in your agreement, is{" "}
+                {i.feeBps != null ? `${i.feeBps / 100}%` : "the agreed percentage"}: <strong>{formatExactUsd(i.amountCents)}</strong>.
+              </p>
+              {i.status === "PAID" ? (
+                <p>Paid on {i.paidAt}. Thank you.</p>
+              ) : i.demoPay ? (
+                <DemoPayForm invoiceId={i.id} />
+              ) : i.payUrl ? (
+                <p>
+                  <a className="font-medium underline" href={i.payUrl} rel="noopener noreferrer">Pay online</a> (due {i.dueDate}).
+                </p>
+              ) : (
+                <p>We sent you an invoice by mail{i.dueDate ? `, due ${i.dueDate}` : ""}.</p>
               )}
             </div>
           ))}

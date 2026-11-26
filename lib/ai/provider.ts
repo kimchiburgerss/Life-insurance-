@@ -41,12 +41,27 @@ function getClient(): Anthropic {
  * - The system prompt is marked for prompt caching (it only caches once it is
  *   long enough; shorter prompts are silently not cached).
  */
+/** A document the model should read alongside the JSON input (PDF or photo). */
+export type Attachment = { kind: "pdf" | "image"; mediaType: "application/pdf" | "image/jpeg" | "image/png" | "image/webp"; base64: string };
+
 export async function callClaude<S extends z.ZodType>(
   prompt: Prompt,
   schema: S,
   userContent: string,
   model = process.env.AI_MODEL || DEFAULT_MODEL,
+  attachments: Attachment[] = [],
 ): Promise<ProviderResult> {
+  // Documents go before the text that refers to them.
+  const content: Anthropic.Beta.BetaContentBlockParam[] | string = attachments.length
+    ? [
+        ...attachments.map((a): Anthropic.Beta.BetaContentBlockParam =>
+          a.kind === "pdf"
+            ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: a.base64 } }
+            : { type: "image", source: { type: "base64", media_type: a.mediaType as "image/jpeg" | "image/png" | "image/webp", data: a.base64 } },
+        ),
+        { type: "text", text: userContent },
+      ]
+    : userContent;
   const response = await getClient().beta.messages.parse({
     model,
     max_tokens: 16000,
@@ -54,7 +69,7 @@ export async function callClaude<S extends z.ZodType>(
     fallbacks: "default",
     system: [{ type: "text", text: prompt.system, cache_control: { type: "ephemeral" } }],
     output_config: { effort: prompt.effort, format: betaZodOutputFormat(schema) },
-    messages: [{ role: "user", content: userContent }],
+    messages: [{ role: "user", content }],
   });
 
   const u = response.usage;

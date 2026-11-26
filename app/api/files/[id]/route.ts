@@ -20,7 +20,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/files/[id]">
   }
   const file = await readFile(id);
   if (!file) return new Response("Not found", { status: 404 });
-  const generated = file.meta.kind === "AGREEMENT_PDF" || file.meta.kind === "AGREEMENT_SIGNED";
+  const generated = file.meta.kind === "AGREEMENT_PDF" || file.meta.kind === "AGREEMENT_SIGNED" || file.meta.kind === "CLAIM_PACKET";
   const inline = url.searchParams.get("download") !== "1" && (generated || file.meta.contentType.startsWith("image/"));
   await writeAudit(prisma, {
     actor: { type: "USER", id: operator.id, role: operator.role },

@@ -71,6 +71,33 @@ These are the defaults Phase 5 will build on unless you say otherwise:
 | 4 | **Invoicing** | Stripe invoice to the heir for the agreed fee after they confirm receipt (or the State confirms payment), with reminders at 7/14/30 days; the fee is computed from the amount actually paid, never above the agreement's percentage. |
 | 5 | **Revenue metrics** | Collected, outstanding, average days to payment, cost per case. |
 
+## Phase 6 decisions (claims and billing)
+
+| Topic | Decision |
+|-------|----------|
+| Who files | The **heir is the claimant** and completes and signs the State's claim form (online at claims.nevadaunclaimedproperty.gov, or on paper). We prepare and check the supporting documents, assemble them behind a cover letter, and record the filing. The app never signs or files in the heir's name. |
+| Which documents | `CLAIM_REQUIREMENTS` v3, from the Treasurer's claim instructions (UP-9) and deceased-owner fact sheet (UP-23) as quoted in search results: claim form, claimant photo ID, certified death certificate, proof of relationship; **small estate** (whole estate ≤ $25,000, or ≤ $100,000 for a surviving spouse) → small-estate affidavit **UP-45** (spouse: **UP-47**); **no will** → affidavit of heirship **UP-40**; **will** → copy of the will or trust; **probate** → certified court documents; **other heirs** → release **UP-43** from each; notarization for claims of $500 or more. **Unverified**: nevadatreasurer.gov could not be reached from the build environment, so these come from search-result excerpts. The rule ships unverified with a note; check the current forms before relying on it. |
+| Mailing address | Unclaimed Property Division, 555 E. Washington Ave., Suite 5200, Las Vegas, NV 89101 (stored in the rule's `filing` parameters, used on the cover letter). **Unverified** — confirm before mailing. |
+| Undecided facts | A document that depends on an unanswered question (estate size, will, spouse, other heirs) is shown as *undecided* and blocks assembly — never silently dropped. |
+| AI document review | Operator-triggered, one document at a time, PDF/JPEG/PNG/WebP up to 20 MB (HEIC isn't supported by the API: ask for a JPEG or PDF). Results are suggestions; the app adds its own name/date/notarization checks against the case. Demo mode returns a canned review. |
+| Packet format | One PDF: cover letter (same renderer as agreements), then each accepted document in checklist order, each page labelled "Enclosure n: …". Photos become full pages. Encrypted or broken PDFs are refused with a request for a new copy. |
+| When to bill | Only after the OWNER records the amount the State actually paid the heir, the date and how they know. No automatic billing from the claim approval alone. |
+| Fee | Agreement percentage × amount paid to the heir, **rounded down** to the cent, checked against the agreement's cap. Not the reported amount (the State may pay more or less, e.g. with interest or after deductions). |
+| Invoicing | Stripe Invoicing, `send_invoice`, due in 30 days; Stripe emails the heir a hosted payment page. Reminders on days 7, 14 and 30 are sent by this app (re-sending the same approved invoice) so every reminder is logged; turn off Stripe's own reminder emails in the Stripe dashboard's invoice settings to avoid doubles. Without Stripe (or by choice) an invoice can be approved as **manual** and marked paid by hand. A wrong invoice is voided and replaced (one live invoice per agreement). |
+| Metrics | Funnel from the audit log's stage changes; revenue from paid and open invoices; AI cost from logged AI runs; letters, lookups and e-signatures × the unit costs you enter in Settings (0 until you do, and listed as missing); break-even = monthly fixed cost ÷ margin per closed case. |
+
+## Before Phase 7 (hardening) — assumptions to confirm
+
+| # | Assumption | Default in the build |
+|---|------------|----------------------|
+| 1 | **Security review** | A structured self-review against OWASP ASVS level 2 (auth, sessions, access control, input handling, files, webhooks, secrets, logging), with fixes: nonce-based Content-Security-Policy, TOTP used-code check (no replay), PII retention purge job, encryption-key rotation script, restricted Stripe key guidance. No external penetration test (recommended before scale; founder's choice). |
+| 2 | **Accessibility** | WCAG 2.2 AA for the heir portal and the operator console: automated axe-core checks in the E2E suite on every main page, plus a manual keyboard and screen-reader pass (focus order, labels, contrast, error messages, 200% zoom, mobile width). |
+| 3 | **Full E2E suite** | Add the paths not yet covered end to end: opt-out and unsubscribe, returned mail, paper agreement, more-info re-filing, invoice void and re-bill, researcher/viewer permissions, the heir portal at phone width, and the large-text option. Runs in CI against the production build. |
+| 4 | **Deployment guide** | Host-neutral Docker guide with **Render** as the worked example (one web service + managed Postgres with daily backups/point-in-time recovery), custom domain with HTTPS, secrets in the host's store, migrations as a release step, webhooks (Lob, Dropbox Sign, Stripe), health check, and **a single app instance** (the background worker runs inside it). Tell me if you prefer Fly.io, Railway or a VPS. |
+| 5 | **OPERATIONS.md additions** | Backups (nightly `pg_dump` kept off-site + a quarterly restore drill), key backup and rotation, adding/removing operators, monitoring and alerts, incident response and breach notification (Nevada NRS 603A; PIPEDA breach reporting since the operator is in Ontario), and a pre-launch checklist. |
+| 6 | **Data retention** | Contact details of heirs on closed-lost cases purged after 180 days; closed-won case records and invoices kept 7 years (tax/accounting); uploaded documents and claim packets deleted 2 years after the case closes. Founder and counsel to confirm. |
+| 7 | **Privacy policy** | `PRIVACY_POLICY_DRAFT.md` for the heir portal and letters (US + PIPEDA), clearly marked as needing legal review. |
+
 ## Imports
 
 | Topic | Decision |
@@ -94,3 +121,8 @@ These are the defaults Phase 5 will build on unless you say otherwise:
 - 39 U.S.C. 3001: https://www.govinfo.gov/content/pkg/USCODE-2023-title39/html/USCODE-2023-title39-partIV-chap30-sec3001.htm
 - Resend acceptable use policy: https://resend.com/legal/acceptable-use · Postmark message types: https://postmarkapp.com/support/article/1082-what-types-of-messages-are-a-good-fit-for-postmark
 - Lob API reference: https://docs.lob.com/ · Lob letters guide: https://help.lob.com/print-and-mail/designing-mail-creatives/mail-piece-design-specs/letters
+- Nevada Treasurer — Claim instruction sheet (UP-9): https://www.nevadatreasurer.gov/uploadedFiles/treasurer.nv.gov/content/Unclaimed_Property/Forms/Claimant/UP-9_Claim_Instruction_Sheet.pdf
+- Nevada Treasurer — Deceased owner claims fact sheet (UP-23): https://www.nevadatreasurer.gov/uploadedFiles/treasurer.nv.gov/content/Unclaimed_Property/Forms/Claimant/UP-23_Fact_Sheet_Deceased_Owner_Claims.pdf
+- Nevada Treasurer — Unclaimed property claims contact: https://www.nevadatreasurer.gov/Contact/UP_Claims
+- Stripe — Invoicing integration quickstart: https://docs.stripe.com/invoicing/integration/quickstart · Sending invoices: https://docs.stripe.com/billing/invoices/sending
+- Stripe — Webhook signatures: https://docs.stripe.com/webhooks

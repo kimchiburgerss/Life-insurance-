@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 import { prisma, type DbClient } from "@/lib/db";
 import { decryptBytes, encryptBytes, hmacHex } from "./crypto";
 
-export type FileKind = "AGREEMENT_PDF" | "AGREEMENT_SIGNED" | "HEIR_UPLOAD" | "PAPER_SIGNATURE";
+export type FileKind = "AGREEMENT_PDF" | "AGREEMENT_SIGNED" | "HEIR_UPLOAD" | "PAPER_SIGNATURE" | "CLAIM_PACKET";
 
 export function sha256Hex(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");

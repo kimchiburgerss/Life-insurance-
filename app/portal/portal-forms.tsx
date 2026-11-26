@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useActionState, useState } from "react";
-import { callAction, demoSignAction, emailAction, messageAction, stopContactAction, type PortalActionState } from "./actions";
+import { callAction, demoPayAction, demoSignAction, emailAction, messageAction, stopContactAction, type PortalActionState } from "./actions";
 
 const field = "mt-1 block w-full rounded-lg border border-slate-400 bg-white px-3 py-2.5 text-base text-slate-900";
 const button = "inline-flex min-h-11 items-center justify-center rounded-lg bg-emerald-800 px-5 py-2.5 text-base font-semibold text-white hover:bg-emerald-900 disabled:bg-slate-400";
@@ -164,6 +164,20 @@ export function StopContactForm() {
       </label>
       <button type="submit" className={quiet} disabled={pending}>
         Stop contact
+      </button>
+      <Result state={state} />
+    </form>
+  );
+}
+
+export function DemoPayForm({ invoiceId }: { invoiceId: string }) {
+  const [state, action, pending] = useActionState<PortalActionState, FormData>(demoPayAction, {});
+  return (
+    <form action={action} className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-4">
+      <p className="text-sm font-medium text-amber-900">Demo mode: this stands in for the online payment page. No money moves.</p>
+      <input type="hidden" name="invoiceId" value={invoiceId} />
+      <button type="submit" className={button} disabled={pending}>
+        Pay invoice (demo)
       </button>
       <Result state={state} />
     </form>

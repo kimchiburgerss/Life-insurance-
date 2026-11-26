@@ -9,6 +9,7 @@ import {
   saveAgreementOptionsAction,
   saveBusinessAction,
   saveOutreachAction,
+  saveUnitCostsAction,
   toggleAttorneyAgreementAction,
   uploadAttorneyAgreementAction,
   type ActionState,
@@ -177,6 +178,23 @@ export function ToggleAttorneyAgreementForm({ on, disabled }: { on: boolean; dis
         </Button>
       )}
       <Result state={state} />
+    </form>
+  );
+}
+
+export function UnitCostsForm({ initial, disabled }: { initial: { perLetterCents: number; perDataLookupCents: number; perEsignCents: number; monthlyHostingCents: number }; disabled: boolean }) {
+  const [state, action, pending] = useActionState<ActionState, FormData>(saveUnitCostsAction, {});
+  const d = (c: number) => (c / 100).toFixed(2);
+  return (
+    <form action={action} className="grid gap-4 sm:grid-cols-4">
+      <Field id="perLetter" label="Per letter ($)" defaultValue={d(initial.perLetterCents)} inputMode="decimal" disabled={disabled} />
+      <Field id="perLookup" label="Per data lookup ($)" defaultValue={d(initial.perDataLookupCents)} inputMode="decimal" disabled={disabled} />
+      <Field id="perEsign" label="Per e-signature ($)" defaultValue={d(initial.perEsignCents)} inputMode="decimal" disabled={disabled} />
+      <Field id="monthlyHosting" label="Monthly hosting ($)" defaultValue={d(initial.monthlyHostingCents)} inputMode="decimal" disabled={disabled} />
+      <div className="sm:col-span-4 space-y-2">
+        {disabled ? null : <Button type="submit" disabled={pending}>Save costs</Button>}
+        <Result state={state} />
+      </div>
     </form>
   );
 }

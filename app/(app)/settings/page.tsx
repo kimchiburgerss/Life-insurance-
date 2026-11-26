@@ -8,7 +8,9 @@ import { emailProviderStatus } from "@/adapters/email/status";
 import { mailProviderStatus } from "@/adapters/mail/status";
 import { getAgreementSettings } from "@/lib/agreements/settings";
 import { esignProviderStatus } from "@/adapters/esign/status";
-import { AgreementOptionsForm, AttorneyAgreementForm, BusinessForm, ClearCounselForm, CounselForm, OutreachForm, ToggleAttorneyAgreementForm } from "./settings-forms";
+import { getUnitCosts } from "@/lib/metrics/costs";
+import { paymentsProviderStatus } from "@/adapters/payments/status";
+import { AgreementOptionsForm, AttorneyAgreementForm, BusinessForm, ClearCounselForm, CounselForm, OutreachForm, ToggleAttorneyAgreementForm, UnitCostsForm } from "./settings-forms";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -17,6 +19,8 @@ export default async function SettingsPage() {
   const owner = can(operator.role, "rules:manage");
   const [business, settings, agreementSettings] = await Promise.all([getBusinessProfile(), getOutreachSettings(), getAgreementSettings()]);
   const esign = esignProviderStatus();
+  const payments = paymentsProviderStatus();
+  const unitCosts = await getUnitCosts();
   const attorney = agreementSettings.attorneyTemplate;
   const versions = currentTemplateVersions();
   const counsel = settings.counselApproval;
@@ -88,6 +92,10 @@ export default async function SettingsPage() {
         </div>
       </Card>
 
+      <Card title="Your costs (for Metrics)">
+        <UnitCostsForm initial={unitCosts} disabled={!owner} />
+      </Card>
+
       <Card title="Sending services">
         <dl className="space-y-2 text-sm">
           <div className="flex flex-wrap gap-2">
@@ -106,6 +114,12 @@ export default async function SettingsPage() {
             <dt className="w-32 text-slate-600">E-signature</dt>
             <dd>
               <Badge tone={esign.ok ? "good" : "warn"}>{esign.ok ? "ready" : "paper only"}</Badge> {esign.name} · callback {publicAppUrl()}/api/webhooks/esign
+            </dd>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <dt className="w-32 text-slate-600">Invoices</dt>
+            <dd>
+              <Badge tone={payments.ok ? "good" : "warn"}>{payments.ok ? "ready" : "manual only"}</Badge> {payments.name} · webhook {publicAppUrl()}/api/webhooks/stripe
             </dd>
           </div>
           <div className="flex flex-wrap gap-2">

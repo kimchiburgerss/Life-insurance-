@@ -2,6 +2,7 @@ import "server-only";
 import { unlockDueCases } from "@/lib/case/waiting";
 import { prisma } from "@/lib/db";
 import { processImportBatch } from "@/lib/import/process";
+import { sendDueReminders } from "@/lib/billing/gateway";
 import { draftDueFollowUps } from "@/lib/outreach/followups";
 import { dispatchDue } from "@/lib/outreach/gateway";
 import { rescoreOpenCases } from "@/lib/screening/maintenance";
@@ -35,7 +36,13 @@ export async function startWorker(): Promise<void> {
     const r = await draftDueFollowUps();
     console.log(`[jobs] follow-ups: ${r.drafted} drafted, ${r.skipped} skipped`);
   });
+  await boss.work(QUEUES.invoiceReminders, async () => {
+    const r = await sendDueReminders();
+    if (r.sent || r.manual) console.log(`[jobs] invoice reminders: ${r.sent} re-sent, ${r.manual} manual flagged`);
+  });
   await boss.schedule(QUEUES.outreachDispatch, "*/5 * * * *", null, { tz: "America/Los_Angeles" });
+  // 09:37 in Nevada: invoice reminders go out in business hours.
+  await boss.schedule(QUEUES.invoiceReminders, "37 9 * * *", null, { tz: "America/Los_Angeles" });
   // 06:17 in Nevada: follow-up drafts are ready to review at the start of the day.
   await boss.schedule(QUEUES.followUps, "17 6 * * *", null, { tz: "America/Los_Angeles" });
   // 00:13 in Nevada: a case becomes eligible at the start of its eligible date.
