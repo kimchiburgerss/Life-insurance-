@@ -1,0 +1,660 @@
+// Nevada Heir Finder — database schema.
+//
+// Conventions
+// - Money is stored as integer cents (`...Cents Int`) and fees as basis points
+//   (`feeBps`: 1000 = 10.00%). No floating-point money anywhere.
+// - Legal dates (delivered to state, presumed abandoned, death, eligibility)
+//   are calendar dates (`@db.Date`) and are always handled as UTC dates.
+// - Fields ending in `Enc` hold AES-256-GCM ciphertext produced by
+//   lib/crypto/pii.ts. Fields ending in `Hash` hold HMAC-SHA256 blind indexes.
+// - The auth models (User, Session, Account, Verification, TwoFactor,
+//   RateLimit) follow Better Auth 1.7's schema. Keep them in sync by hand
+//   if Better Auth is upgraded (see README "Upgrading Better Auth").
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────────── Auth (Better Auth) ─────────────────────────────
+
+enum Role {
+  OWNER
+  RESEARCHER
+  VIEWER
+}
+
+model User {
+  id               String      @id
+  name             String
+  email            String      @unique
+  emailVerified    Boolean     @default(false)
+  image            String?
+  role             Role        @default(VIEWER)
+  twoFactorEnabled Boolean?    @default(false)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  sessions         Session[]
+  accounts         Account[]
+  twoFactors       TwoFactor[]
+
+  assignedCases Case[]     @relation("CaseAssignee")
+  approvals     Approval[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model TwoFactor {
+  id                      String    @id
+  secret                  String
+  backupCodes             String
+  userId                  String
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verified                Boolean?  @default(true)
+  failedVerificationCount Int?      @default(0)
+  lockedUntil             DateTime?
+
+  @@index([secret])
+  @@index([userId])
+  @@map("two_factor")
+}
+
+model RateLimit {
+  id          String @id
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+
+  @@map("rate_limit")
+}
+
+// ───────────────────────────── Domain enums ─────────────────────────────
+
+enum CaseStage {
+  IMPORTED
+  SCREENED
+  OWNER_VERIFIED_DECEASED
+  HEIRS_RESEARCHING
+  HEIRS_IDENTIFIED
+  WAITING_PERIOD
+  READY_FOR_OUTREACH
+  CONTACTED
+  RESPONDED
+  AGREEMENT_SENT
+  AGREEMENT_SIGNED
+  CLAIM_PACKET_PREPARED
+  CLAIM_FILED
+  CLAIM_APPROVED
+  CLAIM_DENIED
+  MORE_INFO_REQUESTED
+  PAID_TO_HEIR
+  FEE_INVOICED
+  FEE_COLLECTED
+  CLOSED_WON
+  CLOSED_NO_HEIR
+  CLOSED_DECLINED
+  CLOSED_SELF_CLAIMED
+  CLOSED_INELIGIBLE
+}
+
+enum PropertyCategory {
+  LIFE_INSURANCE
+  ANNUITY
+  ESTATE
+  OTHER
+  UNKNOWN
+}
+
+enum EvidenceSourceType {
+  OBITUARY
+  DEATH_RECORD_INDEX
+  PROBATE_FILING
+  PUBLIC_RECORD
+  PEOPLE_SEARCH_VENDOR
+  USER_UPLOADED_DOCUMENT
+  MANUAL_NOTE
+}
+
+enum Relationship {
+  NAMED_BENEFICIARY
+  SPOUSE
+  CHILD
+  GRANDCHILD
+  PARENT
+  SIBLING
+  NIECE_NEPHEW
+  GRANDPARENT
+  AUNT_UNCLE
+  COUSIN
+  OTHER
+  UNKNOWN
+}
+
+enum PersonStatus {
+  CANDIDATE
+  CONFIRMED
+  REJECTED
+}
+
+enum CommunicationChannel {
+  MAIL
+  EMAIL
+  INBOUND_PHONE_NOTE
+}
+
+enum CommunicationDirection {
+  OUTBOUND
+  INBOUND
+}
+
+enum CommunicationStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  QUEUED
+  SENT
+  DELIVERED
+  RETURNED
+  FAILED
+  CANCELLED
+  RECEIVED
+}
+
+enum AgreementStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT
+  SIGNED
+  DECLINED
+  CANCELLED
+  VOIDED
+}
+
+enum ClaimPacketStatus {
+  IN_PROGRESS
+  READY_FOR_REVIEW
+  APPROVED
+  FILED
+  APPROVED_BY_STATE
+  DENIED_BY_STATE
+  MORE_INFO_REQUESTED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  VOID
+  UNCOLLECTIBLE
+}
+
+enum RuleType {
+  WAITING_PERIOD
+  FEE_CAP
+  DISCLOSURE_TEXT
+  AGREEMENT_REQUIREMENTS
+  CLAIM_REQUIREMENTS
+}
+
+enum ApprovalSubjectType {
+  COMMUNICATION
+  AGREEMENT
+  CLAIM_PACKET
+}
+
+enum ApprovalDecision {
+  APPROVED
+  REJECTED
+}
+
+enum ActorType {
+  USER
+  SYSTEM
+  AI
+  HEIR
+}
+
+enum AiRunStatus {
+  SUCCEEDED
+  INVALID_OUTPUT
+  FAILED
+}
+
+enum AiAcceptance {
+  PENDING
+  ACCEPTED
+  REJECTED
+  NOT_APPLICABLE
+}
+
+// ───────────────────────────── Domain models ─────────────────────────────
+
+model ImportBatch {
+  id             String     @id @default(cuid())
+  stateCode      String     @default("NV")
+  fileName       String
+  source         String // e.g. "NV Treasurer public-records request 2026-11"
+  rowCount       Int        @default(0)
+  insertedCount  Int        @default(0)
+  duplicateCount Int        @default(0)
+  errorCount     Int        @default(0)
+  errors         Json       @default("[]")
+  columnMapping  Json?
+  createdById    String?
+  createdAt      DateTime   @default(now())
+  properties     Property[]
+
+  @@map("import_batches")
+}
+
+model Property {
+  id                     String           @id @default(cuid())
+  stateCode              String           @default("NV")
+  statePropertyId        String
+  ownerNameRaw           String
+  ownerNameNormalized    String?
+  ownerAddressRaw        String?
+  ownerAddressNormalized Json?
+  holderName             String?
+  propertyTypeCode       String?
+  category               PropertyCategory @default(UNKNOWN)
+  /// Nullable: the state does not always disclose the amount.
+  reportedAmountCents    Int?
+  datePresumedAbandoned  DateTime?        @db.Date
+  /// NRS 120A.740 void period runs until 24 months after this date.
+  dateDeliveredToState   DateTime?        @db.Date
+  hasDeceasedMarker      Boolean          @default(false)
+  holderIsLifeInsurer    Boolean          @default(false)
+  rawRecord              Json
+  importBatchId          String?
+  importBatch            ImportBatch?     @relation(fields: [importBatchId], references: [id])
+  ownerId                String?
+  owner                  Owner?           @relation(fields: [ownerId], references: [id])
+  caseId                 String?
+  case                   Case?            @relation(fields: [caseId], references: [id])
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  @@unique([stateCode, statePropertyId])
+  @@index([ownerId])
+  @@index([caseId])
+  @@index([category])
+  @@map("properties")
+}
+
+model Owner {
+  id                    String     @id @default(cuid())
+  stateCode             String     @default("NV")
+  fullName              String
+  normalizedName        String
+  aliases               String[]   @default([])
+  dateOfBirth           DateTime?  @db.Date
+  dateOfDeath           DateTime?  @db.Date
+  deathVerified         Boolean    @default(false)
+  deathVerificationNote String?
+  lastKnownAddresses    Json       @default("[]")
+  properties            Property[]
+  cases                 Case[]
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  @@index([normalizedName])
+  @@map("owners")
+}
+
+model Case {
+  id                   String          @id @default(cuid())
+  /// Human-friendly reference, shown as e.g. NV-000042.
+  caseNumber           Int             @unique @default(autoincrement())
+  stateCode            String          @default("NV")
+  ownerId              String
+  owner                Owner           @relation(fields: [ownerId], references: [id])
+  stage                CaseStage       @default(IMPORTED)
+  stageChangedAt       DateTime        @default(now())
+  priorityScore        Int?
+  priorityExplanation  String?
+  assignedUserId       String?
+  assignedUser         User?           @relation("CaseAssignee", fields: [assignedUserId], references: [id])
+  estimatedValueCents  Int?
+  /// Computed by lib/rules (latest eligible date across the case's properties).
+  eligibleContractDate DateTime?       @db.Date
+  notes                String?
+  closedAt             DateTime?
+  properties           Property[]
+  persons              Person[]
+  evidence             Evidence[]
+  communications       Communication[]
+  agreements           Agreement[]
+  claimPackets         ClaimPacket[]
+  invoices             Invoice[]
+  aiRuns               AiRun[]
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  @@index([stage])
+  @@index([eligibleContractDate])
+  @@index([ownerId])
+  @@map("cases")
+}
+
+model Person {
+  id                     String          @id @default(cuid())
+  caseId                 String
+  case                   Case            @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  fullName               String
+  normalizedName         String
+  relationship           Relationship    @default(UNKNOWN)
+  /// 0.0 – 1.0
+  relationshipConfidence Float           @default(0)
+  status                 PersonStatus    @default(CANDIDATE)
+  isPredeceased          Boolean         @default(false)
+  /// For descendants through a predeceased person (e.g. grandchild via child).
+  parentPersonId         String?
+  parentPerson           Person?         @relation("PersonLineage", fields: [parentPersonId], references: [id])
+  children               Person[]        @relation("PersonLineage")
+  dateOfBirth            DateTime?       @db.Date
+  dateOfDeath            DateTime?       @db.Date
+  emailEnc               String?
+  phoneEnc               String?
+  mailingAddressEnc      String?
+  emailHash              String?
+  sourceEvidenceIds      String[]        @default([])
+  doNotContact           Boolean         @default(false)
+  piiPurgedAt            DateTime?
+  communications         Communication[]
+  evidence               Evidence[]
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  @@index([caseId])
+  @@index([emailHash])
+  @@map("persons")
+}
+
+model Evidence {
+  id             String             @id @default(cuid())
+  caseId         String
+  case           Case               @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  personId       String?
+  person         Person?            @relation(fields: [personId], references: [id])
+  sourceType     EvidenceSourceType
+  title          String?
+  url            String?
+  /// Object-storage key for uploaded files (encrypted at rest).
+  fileKey        String?
+  extractedFacts Json?
+  /// True when this evidence supports the owner's death.
+  supportsDeath  Boolean            @default(false)
+  retrievedAt    DateTime           @default(now())
+  addedByUserId  String?
+  addedByAiRunId String?
+  createdAt      DateTime           @default(now())
+
+  @@index([caseId])
+  @@map("evidence")
+}
+
+model Approval {
+  id              String              @id @default(cuid())
+  subjectType     ApprovalSubjectType
+  subjectId       String
+  decision        ApprovalDecision
+  /// SHA-256 of the exact content approved. Sending verifies this matches.
+  contentHash     String
+  contentSnapshot String
+  checklist       Json                @default("{}")
+  reason          String?
+  approvedById    String
+  approvedBy      User                @relation(fields: [approvedById], references: [id])
+  createdAt       DateTime            @default(now())
+
+  @@index([subjectType, subjectId])
+  @@map("approvals")
+}
+
+model Communication {
+  id                String                 @id @default(cuid())
+  caseId            String
+  case              Case                   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  personId          String?
+  person            Person?                @relation(fields: [personId], references: [id])
+  channel           CommunicationChannel
+  direction         CommunicationDirection
+  status            CommunicationStatus    @default(DRAFT)
+  templateId        String?
+  templateVersion   String?
+  sequenceStep      Int?
+  subject           String?
+  renderedContent   String?
+  contentHash       String?
+  approvalId        String?
+  providerMessageId String?
+  deliveryStatus    String?
+  scheduledFor      DateTime?
+  sentAt            DateTime?
+  createdById       String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([caseId])
+  @@index([status, scheduledFor])
+  @@map("communications")
+}
+
+model Agreement {
+  id                          String          @id @default(cuid())
+  caseId                      String
+  case                        Case            @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  /// [{ personId, name, email? }]
+  signers                     Json
+  feeBps                      Int
+  propertyValueBeforeFeeCents Int
+  propertyValueAfterFeeCents  Int
+  /// Snapshot of the JurisdictionRule ids + versions used for validation.
+  rulesApplied                Json
+  templateVersion             String
+  isAttorneyApprovedTemplate  Boolean         @default(false)
+  pdfFileKey                  String?
+  contentHash                 String?
+  approvalId                  String?
+  esignProvider               String?
+  esignEnvelopeId             String?
+  status                      AgreementStatus @default(DRAFT)
+  sentAt                      DateTime?
+  signedAt                    DateTime?
+  createdAt                   DateTime        @default(now())
+  updatedAt                   DateTime        @updatedAt
+
+  @@index([caseId])
+  @@map("agreements")
+}
+
+model ClaimPacket {
+  id               String            @id @default(cuid())
+  caseId           String
+  case             Case              @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  /// [{ key, label, required, status, documentKey? }]
+  checklist        Json              @default("[]")
+  status           ClaimPacketStatus @default(IN_PROGRESS)
+  assembledPdfKey  String?
+  approvalId       String?
+  filedAt          DateTime?
+  stateClaimNumber String?
+  outcome          String?
+  outcomeAt        DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([caseId])
+  @@map("claim_packets")
+}
+
+model Invoice {
+  id               String        @id @default(cuid())
+  caseId           String
+  case             Case          @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  amountCents      Int
+  currency         String        @default("usd")
+  status           InvoiceStatus @default(DRAFT)
+  stripeCustomerId String?
+  stripeInvoiceId  String?
+  paymentLinkUrl   String?
+  issuedAt         DateTime?
+  paidAt           DateTime?
+  remindersSent    Json          @default("[]")
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([caseId])
+  @@map("invoices")
+}
+
+model JurisdictionRule {
+  id             String    @id @default(cuid())
+  stateCode      String
+  ruleType       RuleType
+  version        Int       @default(1)
+  /// Shape depends on ruleType; validated by Zod schemas in lib/rules/schemas.ts.
+  params         Json
+  effectiveFrom  DateTime  @db.Date
+  effectiveTo    DateTime? @db.Date
+  enabled        Boolean   @default(true)
+  sourceCitation String
+  sourceUrl      String?
+  /// Null until the founder (or counsel) confirms against the official text.
+  lastVerifiedAt DateTime?
+  verifiedBy     String?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([stateCode, ruleType, version])
+  @@index([stateCode, ruleType, effectiveFrom])
+  @@map("jurisdiction_rules")
+}
+
+/// Append-only. UPDATE/DELETE/TRUNCATE are rejected by a database trigger
+/// (see prisma/migrations/*_audit_log_append_only).
+model AuditLog {
+  id         BigInt    @id @default(autoincrement())
+  actorType  ActorType
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String
+  before     Json?
+  after      Json?
+  reason     String?
+  ipAddress  String?
+  createdAt  DateTime  @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model AiRun {
+  id            String       @id @default(cuid())
+  promptName    String
+  promptVersion String
+  model         String
+  inputHash     String
+  /// Input after PII redaction — never raw SSNs or contact details.
+  inputRedacted Json
+  output        Json?
+  status        AiRunStatus
+  error         String?
+  inputTokens   Int          @default(0)
+  outputTokens  Int          @default(0)
+  /// Cost in millionths of a US dollar.
+  costMicros    Int          @default(0)
+  caseId        String?
+  case          Case?        @relation(fields: [caseId], references: [id])
+  entityType    String?
+  entityId      String?
+  acceptance    AiAcceptance @default(PENDING)
+  decidedById   String?
+  decidedAt     DateTime?
+  createdAt     DateTime     @default(now())
+
+  @@index([caseId])
+  @@index([promptName, promptVersion])
+  @@map("ai_runs")
+}
+
+model DoNotContact {
+  id             String   @id @default(cuid())
+  normalizedName String?
+  emailHash      String?
+  addressHash    String?
+  reason         String
+  createdById    String?
+  createdAt      DateTime @default(now())
+
+  @@index([emailHash])
+  @@index([addressHash])
+  @@index([normalizedName])
+  @@map("do_not_contact")
+}
+
+model AppSetting {
+  key         String   @id
+  value       Json
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("app_settings")
+}
