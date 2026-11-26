@@ -21,18 +21,21 @@
     "demo": "tsx scripts/demo.ts",
     "demo:totp": "tsx scripts/demo-totp.ts",
     "user:create": "tsx --conditions=react-server scripts/create-user.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "cases:rescore": "tsx --conditions=react-server scripts/rescore.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "better-auth": "1.7.28",
     "next": "16.4.6",
+    "papaparse": "5.7.1",
     "pg": "8.23.1",
     "pg-boss": "12.40.0",
     "qrcode": "1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "read-excel-file": "9.3.20",
     "server-only": "0.0.1",
     "zod": "4.6.7"
   },
@@ -41,6 +44,7 @@
     "@playwright/test": "1.63.0",
     "@tailwindcss/turbopack": "4.3.3",
     "@types/node": "22.20.7",
+    "@types/papaparse": "5.5.2",
     "@types/pg": "8.23.1",
     "@types/qrcode": "1.5.6",
     "@types/react": "^19",
@@ -58,5 +62,8 @@
   },
   "engines": {
     "node": ">=22.12.0"
+  },
+  "overrides": {
+    "effect": "3.22.5"
   }
 }

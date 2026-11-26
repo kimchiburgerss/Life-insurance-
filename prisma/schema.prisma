@@ -273,6 +273,26 @@ enum AiRunStatus {
   FAILED
 }
 
+enum ImportStatus {
+  UPLOADED
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum DatePrecision {
+  DAY
+  MONTH
+  YEAR
+}
+
+enum MatchStatus {
+  PENDING
+  MERGED
+  REJECTED
+}
+
 enum AiAcceptance {
   PENDING
   ACCEPTED
@@ -283,21 +303,78 @@ enum AiAcceptance {
 // ───────────────────────────── Domain models ─────────────────────────────
 
 model ImportBatch {
-  id             String     @id @default(cuid())
-  stateCode      String     @default("NV")
-  fileName       String
-  source         String // e.g. "NV Treasurer public-records request 2026-11"
-  rowCount       Int        @default(0)
-  insertedCount  Int        @default(0)
-  duplicateCount Int        @default(0)
-  errorCount     Int        @default(0)
-  errors         Json       @default("[]")
-  columnMapping  Json?
-  createdById    String?
-  createdAt      DateTime   @default(now())
-  properties     Property[]
+  id              String                @id @default(cuid())
+  stateCode       String                @default("NV")
+  fileName        String
+  source          String // e.g. "NV Treasurer public-records request 2026-11"
+  status          ImportStatus          @default(UPLOADED)
+  fileType        String // "csv" | "xlsx"
+  fileSha256      String
+  /// Raw upload; cleared once processing finishes (the parsed rows live in properties).
+  fileData        Bytes?
+  headers         String[]              @default([])
+  previewRows     Json                  @default("[]")
+  columnMapping   Json?
+  columnMappingId String?
+  savedMapping    ColumnMapping?        @relation(fields: [columnMappingId], references: [id])
+  rowCount        Int                   @default(0)
+  insertedCount   Int                   @default(0)
+  duplicateCount  Int                   @default(0)
+  errorCount      Int                   @default(0)
+  errors          Json                  @default("[]")
+  newOwnerCount   Int                   @default(0)
+  groupedCount    Int                   @default(0)
+  reviewCount     Int                   @default(0)
+  flaggedCount    Int                   @default(0)
+  newCaseCount    Int                   @default(0)
+  failureMessage  String?
+  createdById     String?
+  createdAt       DateTime              @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+  properties      Property[]
+  matchCandidates OwnerMatchCandidate[]
 
+  @@index([fileSha256])
   @@map("import_batches")
+}
+
+/// A saved header → field mapping, reused for later files with the same layout.
+model ColumnMapping {
+  id          String        @id @default(cuid())
+  name        String        @unique
+  stateCode   String        @default("NV")
+  /// { [propertyField]: "Source Header" }
+  mapping     Json
+  createdById String?
+  createdAt   DateTime      @default(now())
+  lastUsedAt  DateTime?
+  batches     ImportBatch[]
+
+  @@map("column_mappings")
+}
+
+/// Uncertain owner merge awaiting a human decision (never auto-merged).
+model OwnerMatchCandidate {
+  id              String       @id @default(cuid())
+  /// The provisional owner created by the import.
+  newOwnerId      String
+  newOwner        Owner        @relation("MatchNew", fields: [newOwnerId], references: [id], onDelete: Cascade)
+  /// The existing owner it may be the same person as.
+  existingOwnerId String
+  existingOwner   Owner        @relation("MatchExisting", fields: [existingOwnerId], references: [id], onDelete: Cascade)
+  score           Float
+  reasons         Json
+  status          MatchStatus  @default(PENDING)
+  importBatchId   String?
+  importBatch     ImportBatch? @relation(fields: [importBatchId], references: [id])
+  decidedById     String?
+  decidedAt       DateTime?
+  createdAt       DateTime     @default(now())
+
+  @@unique([newOwnerId, existingOwnerId])
+  @@index([status])
+  @@map("owner_match_candidates")
 }
 
 model Property {
@@ -316,6 +393,17 @@ model Property {
   datePresumedAbandoned  DateTime?        @db.Date
   /// NRS 120A.740 void period runs until 24 months after this date.
   dateDeliveredToState   DateTime?        @db.Date
+  /// YEAR/MONTH = source only gave a year or month; the stored date is the
+  /// LAST day of that period (the conservative choice for the void period and fee tier).
+  dateDeliveredPrecision DatePrecision?
+  /// Parsed name parts + markers from lib/normalize/name.ts.
+  ownerNameParsed        Json?
+  /// Name flags (ESTATE, DECEASED, CARE_OF, TRUST, JOINT, BUSINESS, UNKNOWN,
+  /// ORDER_ASSUMED) plus record flags (AMOUNT_MINIMUM, DATE_APPROXIMATE, NO_ADDRESS, OUT_OF_STATE).
+  flags                  String[]         @default([])
+  /// True when the source gave a range or "over $X": reportedAmountCents is the lower bound.
+  amountIsMinimum        Boolean          @default(false)
+  sourceRowNumber        Int?
   hasDeceasedMarker      Boolean          @default(false)
   holderIsLifeInsurer    Boolean          @default(false)
   rawRecord              Json
@@ -336,22 +424,29 @@ model Property {
 }
 
 model Owner {
-  id                    String     @id @default(cuid())
-  stateCode             String     @default("NV")
+  id                    String                @id @default(cuid())
+  stateCode             String                @default("NV")
   fullName              String
   normalizedName        String
-  aliases               String[]   @default([])
-  dateOfBirth           DateTime?  @db.Date
-  dateOfDeath           DateTime?  @db.Date
-  deathVerified         Boolean    @default(false)
+  aliases               String[]              @default([])
+  dateOfBirth           DateTime?             @db.Date
+  dateOfDeath           DateTime?             @db.Date
+  deathVerified         Boolean               @default(false)
   deathVerificationNote String?
-  lastKnownAddresses    Json       @default("[]")
+  lastKnownAddresses    Json                  @default("[]")
   properties            Property[]
   cases                 Case[]
-  createdAt             DateTime   @default(now())
-  updatedAt             DateTime   @updatedAt
+  matchesAsNew          OwnerMatchCandidate[] @relation("MatchNew")
+  matchesAsExisting     OwnerMatchCandidate[] @relation("MatchExisting")
+  /// Blocking keys for fuzzy matching (surname phonetic code, etc.).
+  matchKeys             String[]              @default([])
+  /// Set when a reviewer merged this (provisional) owner into another one.
+  mergedIntoId          String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
 
   @@index([normalizedName])
+  @@index([matchKeys], type: Gin)
   @@map("owners")
 }
 
@@ -366,6 +461,12 @@ model Case {
   stageChangedAt       DateTime        @default(now())
   priorityScore        Int?
   priorityExplanation  String?
+  /// [{ label, points }] — every factor behind priorityScore.
+  priorityFactors      Json?
+  /// estimated amount × fee rate × probability of success (cents); null if amount unknown.
+  expectedValueCents   Int?
+  successProbability   Float?
+  scoredAt             DateTime?
   assignedUserId       String?
   assignedUser         User?           @relation("CaseAssignee", fields: [assignedUserId], references: [id])
   estimatedValueCents  Int?
@@ -385,6 +486,7 @@ model Case {
   updatedAt            DateTime        @updatedAt
 
   @@index([stage])
+  @@index([stage, priorityScore])
   @@index([eligibleContractDate])
   @@index([ownerId])
   @@map("cases")

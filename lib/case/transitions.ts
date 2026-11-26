@@ -7,6 +7,7 @@ import type { CaseStage, Role } from "@/lib/generated/prisma/enums";
 import { computeCaseEligibility, type CaseEligibility } from "@/lib/rules/engine";
 import { getActiveRule } from "@/lib/rules/repository";
 import {
+  ALLOWED_TRANSITIONS,
   checkTransition,
   HEIR_CONFIDENCE_THRESHOLD,
   isTerminal,
@@ -136,6 +137,35 @@ async function buildGuardContext(db: DbClient, caseId: string, today: Date): Pro
     invoiceCount,
     paidInvoiceCount,
   };
+}
+
+export type TransitionPreview = {
+  to: CaseStage;
+  allowedForRole: boolean;
+  blocks: Block[];
+  /** True when every block is overridable (OWNER may proceed with a reason). */
+  overridable: boolean;
+};
+
+/** For the case page: every edge out of the current stage and what would block it. */
+export async function previewTransitions(
+  caseId: string,
+  role: Role,
+  today: Date = todayIn(),
+): Promise<{ from: CaseStage; options: TransitionPreview[]; eligibility: CaseEligibility; ruleVerified: boolean }> {
+  const c = await prisma.case.findUniqueOrThrow({ where: { id: caseId }, select: { stage: true } });
+  const ctx = await buildGuardContext(prisma, caseId, today);
+  const options = (ALLOWED_TRANSITIONS[c.stage] ?? []).map((to) => {
+    const check = checkTransition(c.stage, to, ctx, false);
+    const blocks = check.ok ? [] : check.blocks;
+    return {
+      to,
+      allowedForRole: canTransitionTo(role, to),
+      blocks,
+      overridable: blocks.length > 0 && blocks.every((b) => b.overridable),
+    };
+  });
+  return { from: c.stage, options, eligibility: ctx.eligibility, ruleVerified: ctx.waitingPeriodRuleVerified };
 }
 
 /**

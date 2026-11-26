@@ -15,5 +15,7 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   // Everything except auth endpoints, the login page, static assets and health check.
-  matcher: ["/((?!api/auth|api/health|login|_next/static|_next/image|favicon.ico).*)"],
+  // /api/imports is excluded so large uploads are not truncated at the proxy
+  // body-buffer limit (10 MB); that route checks the session itself.
+  matcher: ["/((?!api/auth|api/health|api/imports|login|_next/static|_next/image|favicon.ico|robots.txt).*)"],
 };

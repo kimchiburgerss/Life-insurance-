@@ -16,9 +16,21 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           <Link href="/" className="text-lg font-semibold">
             Heir Finder
           </Link>
-          <nav aria-label="Main" className="flex gap-4 text-sm">
+          <nav aria-label="Main" className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
             <Link href="/" className="hover:underline">
               Today
+            </Link>
+            <Link href="/pipeline" className="hover:underline">
+              Pipeline
+            </Link>
+            <Link href="/screening" className="hover:underline">
+              Screening
+            </Link>
+            <Link href="/review" className="hover:underline">
+              Review queue
+            </Link>
+            <Link href="/imports" className="hover:underline">
+              Imports
             </Link>
             <Link href="/rules" className="hover:underline">
               Jurisdiction rules

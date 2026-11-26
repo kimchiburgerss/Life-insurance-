@@ -6,7 +6,8 @@ export const OWNER = { email: "owner@example.com", password: "demo-owner-passwor
 export const VIEWER = { email: "viewer@example.com", password: "demo-viewer-password" };
 
 export async function signInWithPassword(page: Page, creds: { email: string; password: string }) {
-  await page.goto("/login");
+  // networkidle: on a cold dev server the first compile can reload the page mid-typing.
+  await page.goto("/login", { waitUntil: "networkidle" });
   await page.getByLabel("Email").fill(creds.email);
   await page.getByLabel("Password").fill(creds.password);
   await page.getByRole("button", { name: "Continue" }).click();

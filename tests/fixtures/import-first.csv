@@ -1,0 +1,11 @@
+Property ID,Owner Name,Address,City,State,Zip,Holder Name,Property Type,Cash Reported,Date Remitted
+P-1001,ESTATE OF JOHN A SMITH,123 Main Street,Las Vegas,NV,89101,Silver Sage Mutual Life Insurance Co,IN03,"$12,500.00",03/15/2019
+P-1002,SMITH JOHN A DECD,123 MAIN ST,LAS VEGAS,NV,89101,Great Basin National Life Assurance,IN01,2500,2019
+P-1003,WILLIAM R JONES,9 Elm St,Reno,NV,89501,Red Rock Annuity & Life Company,IN04,OVER $100,2018-06-30
+P-1004,BILL JONES,44 Oak Ave,Reno,NV,89501,Tahoe Trust Bank,MS16,75.00,2018-07-01
+P-1005,ACME PLUMBING INC,1 Industrial Rd,Henderson,NV,89002,Desert Bloom Credit Union,MS01,$300.00,01/10/2020
+P-1006,UNKNOWN,,,,,Silver Sage Mutual Life Insurance Co,IN01,N/D,2021-01-01
+P-1001,ESTATE OF JOHN A SMITH,123 Main Street,Las Vegas,NV,89101,Silver Sage Mutual Life Insurance Co,IN03,"$12,500.00",03/15/2019
+P-1007,MARY K JOHNSON,77 Desert Inn Rd,Las Vegas,NV,89109,Silver Sage Mutual Life Insurance Co,IN01,$50 - $100,13/45/2020
+P-1008,"GARCIA, MARIA L",500 E Fremont Street,Las Vegas,Nevada,89101,Great Basin National Life Assurance,IN02,4000,2025-12-01
+,,,,,,,,,

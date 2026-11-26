@@ -4,7 +4,7 @@ An operator console that lets one person do the research, matching, drafting
 and case management of a small heir-finding firm. A human stays in the loop for
 every outbound contact and every legal document.
 
-> **Status: Phase 1 (Foundation) complete.** See [Build phases](#build-phases).
+> **Status: Phase 2 (Ingestion & Screening) complete.** See [Build phases](#build-phases).
 > Compliance rules and where they are enforced: [COMPLIANCE.md](COMPLIANCE.md).
 > Security controls: [SECURITY.md](SECURITY.md).
 
@@ -66,6 +66,7 @@ docker compose --profile app up --build   # Postgres + migrations/seed + app on 
 | `npm run db:seed` | Seed jurisdiction rules, plus fake demo data unless `SEED_DEMO=false` or production |
 | `npm run db:reset` | Drop, re-migrate and re-seed the dev database (destructive) |
 | `npm run user:create -- --email … --name "…" --role OWNER` | Create a real operator (prompts for a password; 2FA enrolled at first login) |
+| `npm run cases:rescore` | Recompute priority scores, expected values and eligibility for all open cases (also runs nightly) |
 
 ## Tech stack and why
 
@@ -75,7 +76,8 @@ docker compose --profile app up --build   # Postgres + migrations/seed + app on 
 | Database | **PostgreSQL** + **Prisma ORM 7.10** (`@prisma/adapter-pg`) | Prisma 8 is still a release candidate, and Better Auth supports Prisma ≤ 7. Config lives in `prisma7.config.ts` (the 7.10 naming) |
 | Auth | **Better Auth 1.7** (email + password, `twoFactor` TOTP plugin, Prisma adapter) | Chosen over writing our own: session handling, lockout, rate limiting and backup codes come pre-built and are maintained upstream. 2FA is *mandatory*, enforced in `lib/auth/session.ts` |
 | PII encryption | Application-level AES-256-GCM + HMAC blind indexes | Simpler and more portable than `pgcrypto` with Prisma; keys never reach the database |
-| Jobs | **pg-boss** (Postgres-backed, no Redis) | Installed; first jobs (waiting-period unlocks, follow-ups) arrive in Phases 3–4 |
+| Jobs | **pg-boss 12** (Postgres-backed, no Redis) | Imports and nightly re-scoring. The worker runs inside the web process (started from `instrumentation.ts` in production, on first enqueue in dev), so one container is enough. Set `RUN_JOBS=false` on extra web instances |
+| File parsing | **papaparse** (CSV/TSV) + **read-excel-file** (XLSX) | The npm `xlsx` package (SheetJS 0.18.5) has unpatched advisories and `exceljs` is unmaintained, so neither is used. Old `.xls` files are rejected (save as `.xlsx`) |
 | Tests | Vitest 5 (unit + integration projects), Playwright 1.63 | |
 | AI | Anthropic Claude via the official SDK | Phase 3 |
 | Integrations | Adapter interfaces + mocks (mail, email, e-sign, payments, people-search, obituary) | Phases 3–6. `MOCK_MODE=true` by default |
@@ -89,17 +91,37 @@ lib/
   auth/         Better Auth config, data-access layer, roles, TOTP, provisioning
   case/         Pipeline state machine (pure) + transition service (DB + audit)
   rules/        Jurisdiction rule schemas, engine (pure), repository, seed values
+  normalize/    Names (ESTATE OF / DECD / C/O / LAST FIRST), USPS-style addresses, dates, amounts, categories
+  match/        Owner matching: Jaro-Winkler, Soundex blocking keys, nicknames, decision thresholds
+  import/       Upload → mapping → background processing → review-queue decisions
+  screening/    Explainable priority score + expected value; re-scoring
+  jobs/         pg-boss queue + worker
   crypto/       PII encryption + SSN redaction
   audit.ts      Append-only audit writer (redacts PII)
   dates.ts      UTC calendar-date math for legal deadlines
 prisma/         schema, migrations (incl. audit-log trigger), seed
 tests/          unit/, integration/, e2e/, helpers/
 evals/          AI evaluation fixtures (Phase 3+)
+demo/           FICTIONAL sample Nevada export for trying the import flow
 scripts/        demo, demo:totp, user:create, evals runner
 ```
 
 Coming in later phases: `/adapters`, `/prompts`, `/templates`, `OPERATIONS.md`,
 `PRIVACY_POLICY_DRAFT.md`.
+
+## Importing a Nevada list
+
+1. **Imports → Upload a file.** Say where the file came from (it's recorded for data-use compliance).
+2. **Map columns.** Common headers are matched automatically; save the mapping to reuse it for the
+   next file with the same layout. Click **Preview** to see exactly how rows will be read.
+3. **Start import.** It runs in the background. Properties already imported (same state property ID)
+   are skipped. Rows with problems are listed with their row number and reason.
+4. **Review queue.** Records that *might* be the same person (nicknames, missing address, small typos)
+   wait here. Nothing is merged without a human, and JR/SR pairs are never merged automatically.
+5. **Screening queue.** Highest priority first. Screen in what's worth researching, close the rest with
+   a reason.
+
+Try it with the fictional `demo/sample-nevada-export.csv` (see `demo/README.md` for what each row tests).
 
 ## Deployment (summary; full guide in Phase 7)
 
@@ -115,7 +137,7 @@ Coming in later phases: `/adapters`, `/prompts`, `/templates`, `OPERATIONS.md`,
 ## Build phases
 
 1. **Foundation**: done. Repo, Docker, Postgres + Prisma schema for every model, auth with mandatory TOTP and roles, append-only audit log, Nevada jurisdiction rules engine, case state machine with compliance guards, fake seed/demo data, CI.
-2. Ingestion & screening: CSV/XLSX upload + mapping UI, normalization, grouping review queue, priority scoring, pipeline Kanban.
+2. **Ingestion & screening**: done. CSV/XLSX upload (up to 50 MB) with auto-suggested, saveable column mapping and a live preview; name/address/date/amount normalization; de-duplication by state property ID; fuzzy owner grouping with a human review queue; explainable 0–100 priority score with expected value; screening queue with bulk actions; pipeline board with filters and search; case page with rule-checked stage moves and timeline.
 3. Research: death verification, obituary extraction with evals, family tree, heir candidates, research summaries, waiting-period manager.
 4. Outreach: templates, AI personalization, tone/lint checks, approval queue, mail/email adapters, follow-ups, do-not-contact.
 5. Agreements & portal: agreement generation with validation, e-sign adapter, heir portal with document upload.

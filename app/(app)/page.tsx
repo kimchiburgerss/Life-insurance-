@@ -5,18 +5,16 @@ import { requireOperator } from "@/lib/auth/session";
 import { STAGES, stageLabel } from "@/lib/case/stateMachine";
 import { prisma } from "@/lib/db";
 import { formatDateOnly, todayIn } from "@/lib/dates";
+import { caseRef, formatUsd } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Today" };
 
-function caseRef(n: number) {
-  return `NV-${String(n).padStart(6, "0")}`;
-}
 
 export default async function TodayPage() {
   await requireOperator("case:read");
   const today = todayIn();
 
-  const [stageCounts, unverifiedRules, upcomingUnlocks, readyCount, totalProperties] = await Promise.all([
+  const [stageCounts, unverifiedRules, upcomingUnlocks, readyCount, totalProperties, topByValue, reviewCount, screeningCount, runningImports] = await Promise.all([
     prisma.case.groupBy({ by: ["stage"], _count: { _all: true } }),
     prisma.jurisdictionRule.count({ where: { enabled: true, lastVerifiedAt: null } }),
     prisma.case.findMany({
@@ -33,6 +31,15 @@ export default async function TodayPage() {
     }),
     prisma.case.count({ where: { stage: "READY_FOR_OUTREACH" } }),
     prisma.property.count(),
+    prisma.case.findMany({
+      where: { stage: { notIn: ["CLOSED_WON", "CLOSED_NO_HEIR", "CLOSED_DECLINED", "CLOSED_SELF_CLAIMED", "CLOSED_INELIGIBLE"] }, expectedValueCents: { not: null } },
+      orderBy: { expectedValueCents: "desc" },
+      take: 8,
+      select: { id: true, caseNumber: true, stage: true, expectedValueCents: true, priorityScore: true, owner: { select: { fullName: true } } },
+    }),
+    prisma.ownerMatchCandidate.count({ where: { status: "PENDING" } }),
+    prisma.case.count({ where: { stage: "IMPORTED" } }),
+    prisma.importBatch.count({ where: { status: { in: ["QUEUED", "PROCESSING"] } } }),
   ]);
   const counts = new Map(stageCounts.map((s) => [s.stage, s._count._all]));
   const totalCases = stageCounts.reduce((n, s) => n + s._count._all, 0);
@@ -55,6 +62,52 @@ export default async function TodayPage() {
           </Link>
         </Alert>
       ) : null}
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card title="To screen">
+          <p className="text-3xl font-semibold tabular-nums">{screeningCount}</p>
+          <Link href="/screening" className="text-sm underline">Open screening queue</Link>
+        </Card>
+        <Card title="Possible duplicate owners">
+          <p className="text-3xl font-semibold tabular-nums">{reviewCount}</p>
+          <Link href="/review" className="text-sm underline">Open review queue</Link>
+        </Card>
+        <Card title="Imports running">
+          <p className="text-3xl font-semibold tabular-nums">{runningImports}</p>
+          <Link href="/imports" className="text-sm underline">Imports</Link>
+        </Card>
+      </div>
+
+      <Card title="Top open cases by expected value">
+        {topByValue.length === 0 ? (
+          <p className="text-sm text-slate-600">No cases with a disclosed amount yet.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <caption className="sr-only">Open cases ranked by expected value</caption>
+            <thead className="text-left text-slate-600">
+              <tr>
+                <th scope="col" className="py-1 font-medium">Case</th>
+                <th scope="col" className="py-1 font-medium">Stage</th>
+                <th scope="col" className="py-1 text-right font-medium">Score</th>
+                <th scope="col" className="py-1 text-right font-medium">Expected value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {topByValue.map((c) => (
+                <tr key={c.id} className="border-t border-slate-100">
+                  <td className="py-1">
+                    <Link href={`/cases/${c.id}`} className="underline">{c.owner.fullName}</Link>{" "}
+                    <span className="font-mono text-xs text-slate-500">{caseRef(c.caseNumber)}</span>
+                  </td>
+                  <td className="py-1">{stageLabel(c.stage)}</td>
+                  <td className="py-1 text-right tabular-nums">{c.priorityScore ?? "—"}</td>
+                  <td className="py-1 text-right font-semibold tabular-nums">{formatUsd(c.expectedValueCents)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card title="Pipeline by stage">
@@ -91,10 +144,10 @@ export default async function TodayPage() {
               <ul className="divide-y divide-slate-100 text-sm">
                 {upcomingUnlocks.map((c) => (
                   <li key={c.id} className="flex items-center justify-between gap-2 py-2">
-                    <span>
+                    <Link href={`/cases/${c.id}`} className="hover:underline">
                       <span className="font-mono text-xs text-slate-500">{caseRef(c.caseNumber)}</span>{" "}
                       Estate of {c.owner.fullName}
-                    </span>
+                    </Link>
                     <Badge tone="warn">
                       {c.eligibleContractDate ? formatDateOnly(c.eligibleContractDate) : "date unknown"}
                     </Badge>

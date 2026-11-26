@@ -10,6 +10,8 @@ export const PERMISSIONS = {
   "case:read": ["OWNER", "RESEARCHER", "VIEWER"],
   "case:write": ["OWNER", "RESEARCHER"],
   "case:transition:research": ["OWNER", "RESEARCHER"],
+  "import:run": ["OWNER", "RESEARCHER"],
+  "owners:merge": ["OWNER", "RESEARCHER"],
   "case:transition:any": ["OWNER"],
   "compliance:override": ["OWNER"],
   "approval:decide": ["OWNER"],

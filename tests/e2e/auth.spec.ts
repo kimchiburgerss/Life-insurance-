@@ -11,7 +11,7 @@ test("signed-out visitors are sent to the login page", async ({ page }) => {
 
 test("owner signs in with password + TOTP and sees the Today view", async ({ page }) => {
   await signIn(page, OWNER);
-  await expect(page.getByText(/15 cases · 200 properties/)).toBeVisible();
+  await expect(page.getByText(/\d+ cases · \d+ properties/)).toBeVisible();
   await expect(page.getByRole("table", { name: /cases in each pipeline stage/i })).toBeVisible();
   await expect(page.getByText(/not been verified/)).toBeVisible();
   await page.getByRole("button", { name: "Sign out" }).click();

@@ -16,8 +16,12 @@ import { blindIndex, encryptPii } from "@/lib/crypto/pii";
 import { prisma } from "@/lib/db";
 import { addDays, addMonths, formatDateOnly, todayIn } from "@/lib/dates";
 import type { CaseStage, PropertyCategory, Relationship } from "@/lib/generated/prisma/enums";
+import { ownerMatchKeys } from "@/lib/match/owner";
+import { normalizeAddress } from "@/lib/normalize/address";
+import { hasDeceasedMarker, parseOwnerName } from "@/lib/normalize/name";
 import { NEVADA_RULES, PLACEHOLDER_RULES } from "@/lib/rules/jurisdictions";
 import { parseDateOnly } from "@/lib/dates";
+import { rescoreCases } from "@/lib/screening/service";
 
 export const DEMO_TOTP_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
 export const DEMO_ACCOUNTS = [
@@ -153,23 +157,37 @@ async function seedDemo() {
   const actor = { type: "USER" as const, id: owner.id, role: "OWNER" as const };
 
   const batch = await prisma.importBatch.create({
-    data: { fileName: "demo-nevada-unclaimed-property.csv", source: "DEMO DATA — fictional records", createdById: owner.id },
+    data: {
+      fileName: "demo-nevada-unclaimed-property.csv",
+      source: "DEMO DATA — fictional records",
+      fileType: "csv",
+      fileSha256: "demo-seed",
+      status: "COMPLETED",
+      completedAt: new Date(),
+      createdById: owner.id,
+    },
   });
 
   let propertySeq = 0;
   let caseCount = 0;
+  const allCaseIds: string[] = [];
   for (let i = 0; i < 40; i++) {
     const plan: Plan = CASE_PLANS[i] ?? { stage: null, monthsAgoDelivered: [6, 120] };
     const name = fakeOwnerName();
     const address = fakeAddress();
+    const normalizedAddress = normalizeAddress({
+      kind: "parts", line1: address.line1, city: address.city, state: address.state, zip: address.postalCode,
+    });
+    const normalizedName = `${name.first} ${name.middle} ${name.last}`.toUpperCase();
     const dateOfDeath = addDays(today, -faker.number.int({ min: 400, max: 4000 }));
     const ownerRow = await prisma.owner.create({
       data: {
         fullName: name.full,
-        normalizedName: `${name.first} ${name.middle} ${name.last}`.toUpperCase(),
+        normalizedName,
         aliases: [`${name.first} ${name.last}`.toUpperCase()],
         dateOfBirth: addDays(dateOfDeath, -faker.number.int({ min: 60 * 365, max: 95 * 365 })),
-        lastKnownAddresses: [address],
+        lastKnownAddresses: [normalizedAddress],
+        matchKeys: ownerMatchKeys(parseOwnerName(normalizedName, "FIRST_LAST").tokens),
       },
     });
 
@@ -184,20 +202,24 @@ async function seedDemo() {
       const amount = fakeAmountCents();
       total += amount ?? 0;
       const raw = rawOwnerName(name);
+      const parsedRaw = parseOwnerName(raw);
       const prop = await prisma.property.create({
         data: {
           statePropertyId: `NV-DEMO-${String(++propertySeq).padStart(6, "0")}`,
           ownerNameRaw: raw,
           ownerNameNormalized: ownerRow.normalizedName,
           ownerAddressRaw: `${address.line1}, ${address.city}, NV ${address.postalCode}`.toUpperCase(),
-          ownerAddressNormalized: address,
+          ownerAddressNormalized: normalizedAddress,
+          ownerNameParsed: { first: parsedRaw.first, middle: parsedRaw.middle, last: parsedRaw.last, suffix: parsedRaw.suffix },
+          flags: [...parsedRaw.flags, ...(plan.unknownDate && p === 0 ? ["DELIVERY_DATE_MISSING"] : [])],
           holderName: holder.name,
-          propertyTypeCode: holder.category === "LIFE_INSURANCE" ? "IN01" : holder.category === "ANNUITY" ? "IN03" : "MS16",
+          propertyTypeCode: holder.category === "LIFE_INSURANCE" ? "IN01" : holder.category === "ANNUITY" ? "IN04" : "MS16",
           category: holder.category as PropertyCategory,
           reportedAmountCents: amount,
           datePresumedAbandoned: addMonths(delivered, -faker.number.int({ min: 6, max: 14 }), "clamp"),
           dateDeliveredToState: plan.unknownDate && p === 0 ? null : delivered,
-          hasDeceasedMarker: /ESTATE OF|DECD/.test(raw),
+          dateDeliveredPrecision: plan.unknownDate && p === 0 ? null : "DAY",
+          hasDeceasedMarker: hasDeceasedMarker(parsedRaw),
           holderIsLifeInsurer: holder.lifeInsurer,
           rawRecord: { demo: true, OWNER_NAME: raw, HOLDER: holder.name, AMOUNT: amount === null ? "N/D" : (amount / 100).toFixed(2) },
           importBatchId: batch.id,
@@ -207,7 +229,21 @@ async function seedDemo() {
       propertyIds.push(prop.id);
     }
 
-    if (!plan.stage) continue;
+    if (!plan.stage) {
+      // Freshly imported owner: an IMPORTED case waiting in the screening queue.
+      const imported = await prisma.case.create({
+        data: { ownerId: ownerRow.id, estimatedValueCents: total || null, properties: { connect: propertyIds.map((id) => ({ id })) } },
+      });
+      allCaseIds.push(imported.id);
+      await writeAudit(prisma, {
+        actor: { type: "SYSTEM", id: "seed" },
+        action: "case.created",
+        entityType: "Case",
+        entityId: imported.id,
+        after: { stage: "IMPORTED", propertyCount: propertyIds.length },
+      });
+      continue;
+    }
 
     // ── Create the case and walk it through the pipeline ──
     caseCount++;
@@ -219,6 +255,7 @@ async function seedDemo() {
         properties: { connect: propertyIds.map((id) => ({ id })) },
       },
     });
+    allCaseIds.push(c.id);
     await refreshEligibleContractDate(prisma, c.id, today);
     await writeAudit(prisma, {
       actor: { type: "SYSTEM", id: "seed" },
@@ -248,7 +285,11 @@ async function seedDemo() {
     }
   }
 
-  console.log(`✓ ${propertySeq} properties, 40 owners, ${caseCount} cases (demo data)`);
+  await rescoreCases(prisma, allCaseIds, today);
+  console.log(
+    `✓ ${propertySeq} properties, 40 owners, ${allCaseIds.length} cases ` +
+      `(${caseCount} worked to various stages + ${allCaseIds.length - caseCount} awaiting screening) — demo data`,
+  );
   console.log("\nDemo logins (TOTP secret for all three: %s)", DEMO_TOTP_SECRET);
   for (const a of DEMO_ACCOUNTS) console.log(`  ${a.role.padEnd(10)} ${a.email}  /  ${a.password}`);
   console.log("  Current 6-digit code: npm run demo:totp\n");
