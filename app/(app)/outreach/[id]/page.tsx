@@ -12,6 +12,7 @@ import { formatPostalAddress, getBusinessProfile } from "@/lib/outreach/settings
 import { letterPreviewHtml } from "@/lib/outreach/render";
 import { decryptRecipient, evaluateCommunication, storedTone } from "@/lib/outreach/service";
 import { ApproveForm, CancelForm, NoteEditor, RejectForm, RetryForm } from "./message-forms";
+import { formatNevadaDate } from "@/lib/dates";
 
 export const metadata: Metadata = { title: "Review message" };
 
@@ -111,7 +112,7 @@ export default async function MessagePage({ params }: PageProps<"/outreach/[id]"
 
       {comm.status === "SENT" || comm.status === "DELIVERED" ? (
         <Alert tone="info">
-          Approved by {approval?.approvedBy.name ?? "the owner"} and sent {comm.sentAt?.toISOString().slice(0, 10)}
+          Approved by {approval?.approvedBy.name ?? "the owner"} and sent {formatNevadaDate(comm.sentAt)}
           {comm.provider ? ` (${comm.provider})` : ""}.{comm.status === "DELIVERED" ? " Delivered." : ""}
         </Alert>
       ) : null}

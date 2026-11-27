@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Badge, Card } from "@/components/ui";
+import { Badge, Card, ScrollRegion } from "@/components/ui";
 import { can } from "@/lib/auth/permissions";
 import { requireOperator } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { UploadForm } from "./upload-form";
+import { formatNevadaDate } from "@/lib/dates";
 
 export const metadata: Metadata = { title: "Imports" };
 
@@ -39,7 +40,7 @@ export default async function ImportsPage() {
         {batches.length === 0 ? (
           <p className="text-sm text-slate-600">No imports yet.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <ScrollRegion label="Imports">
             <table className="w-full text-left text-sm">
               <thead className="text-slate-600">
                 <tr>
@@ -70,12 +71,12 @@ export default async function ImportsPage() {
                     <td className="py-1 pr-3 text-right tabular-nums">{b.duplicateCount}</td>
                     <td className="py-1 pr-3 text-right tabular-nums">{b.errorCount}</td>
                     <td className="py-1 pr-3 text-right tabular-nums">{b.reviewCount}</td>
-                    <td className="py-1 whitespace-nowrap">{b.createdAt.toISOString().slice(0, 10)}</td>
+                    <td className="py-1 whitespace-nowrap">{formatNevadaDate(b.createdAt)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollRegion>
         )}
       </Card>
     </div>

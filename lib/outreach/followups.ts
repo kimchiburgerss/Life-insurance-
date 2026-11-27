@@ -7,7 +7,7 @@
  */
 import "server-only";
 import { prisma } from "@/lib/db";
-import { addDays, todayIn, toDateOnly } from "@/lib/dates";
+import { addDays, dateInNevada, todayIn } from "@/lib/dates";
 import { createFollowUpDraft } from "./service";
 import { getOutreachSettings } from "./settings";
 
@@ -42,7 +42,7 @@ export async function draftDueFollowUps(today: Date = todayIn()): Promise<{ draf
         if (existing.status === "SENT" || existing.status === "DELIVERED") continue;
         break;
       }
-      const due = addDays(toDateOnly(first.sentAt!), settings.followUpDays[i]!);
+      const due = addDays(dateInNevada(first.sentAt!), settings.followUpDays[i]!);
       if (today < addDays(due, -settings.followUpLeadDays)) break;
       try {
         await createFollowUpDraft({ caseId: first.caseId, personId: first.personId!, channel: first.channel, step, scheduledFor: due < today ? today : due });

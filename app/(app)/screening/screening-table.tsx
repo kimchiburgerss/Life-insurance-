@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { Alert, Badge, Button, Card } from "@/components/ui";
+import { Alert, Badge, Button, Card, ScrollRegion } from "@/components/ui";
 import { caseRef, formatUsd, scoreTone } from "@/lib/format";
 import { bulkScreen, type BulkState } from "../cases/actions";
 
@@ -90,7 +90,7 @@ export function ScreeningTable({ rows, canAct }: { rows: Row[]; canAct: boolean 
             </Button>
           </div>
         ) : null}
-        <div className="overflow-x-auto">
+        <ScrollRegion label="Cases to screen">
           <table className="w-full text-left text-sm">
             <thead className="text-slate-600">
               <tr>
@@ -151,7 +151,7 @@ export function ScreeningTable({ rows, canAct }: { rows: Row[]; canAct: boolean 
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       </Card>
     </form>
   );

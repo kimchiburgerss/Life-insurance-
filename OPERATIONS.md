@@ -1,7 +1,7 @@
 # Operations
 
-Day-to-day procedures for running the business with this app. Phase 7 adds deployment, backups and
-incident response. **Not legal advice** — where a step depends on the law, ASSUMPTIONS.md says what
+Day-to-day procedures for running the business with this app, plus backups, keys, operators,
+monitoring, data retention and incident response. Deployment itself is in [DEPLOYMENT.md](DEPLOYMENT.md). **Not legal advice** — where a step depends on the law, ASSUMPTIONS.md says what
 to confirm with Nevada counsel.
 
 ## Daily routine (15–30 minutes)
@@ -174,7 +174,9 @@ A failed send (provider error) appears on **Today** and **Approvals**. Open it, 
 **Retry sending** (same approved content — no re-approval needed) or cancel it. If the case changed
 since approval (opt-out, reply, rule unverified), the gateway refuses to send and says why.
 
-## Before real (non-mock) sending
+## Pre-launch checklist
+
+Work through this once, in order, before setting `MOCK_MODE=false`. Keep it as a record (date each line).
 
 1. Nevada counsel reviews `templates/outreach/*.md` (and later the agreement). Record the approval in
    **Settings → Counsel approval** (name, date) — it is tied to the template versions; changing a
@@ -192,3 +194,128 @@ since approval (opt-out, reply, rule unverified), the gateway refuses to send an
    reminders itself). Send one test invoice to yourself first.
 8. Verify the `CLAIM_REQUIREMENTS` rule against the Treasurer's current claim instructions (forms
    UP-40/43/45/47, thresholds, notarization) and mark it verified in **Jurisdiction rules**.
+9. Upload your attorney's agreement text (Settings → Agreements) and switch it on; only then set
+   `DROPBOX_SIGN_TEST_MODE=false`.
+10. Enter your real unit costs (Settings → Your costs) so Metrics are meaningful.
+11. Backups: point-in-time recovery is on (paid database plan), the nightly off-site dump runs, and you
+    have done one restore drill (below).
+12. Keys: `PII_ENCRYPTION_KEY` and `PII_HMAC_KEY` are in your password manager **and** on paper/offline,
+    stored apart from backups.
+13. Accounts: two-factor authentication on Render, GitHub, Stripe, Lob, Dropbox Sign, Anthropic and
+    your mailbox. Only you are OWNER.
+14. Read [PRIVACY_POLICY_DRAFT.md](PRIVACY_POLICY_DRAFT.md) with counsel, publish the approved version
+    on your website, and link it from your letters.
+15. External uptime check on `/api/health` emails you.
+
+## Backups
+
+- **Point-in-time recovery (host):** a paid Render database keeps a continuous backup (3 days on a
+  Hobby workspace, 7 days on Pro). It covers "undo the last few hours", not a lost account or region.
+- **Nightly off-site dump (you):** once a day, from a trusted computer or a scheduled job,
+
+  ```bash
+  pg_dump --format=custom --no-owner "$PRODUCTION_DATABASE_URL" > heirfinder-$(date +%F).dump
+  ```
+
+  and store it encrypted somewhere you control (e.g. an encrypted cloud bucket with versioning).
+  Keep 30 daily and 12 monthly copies. Dumps contain encrypted documents and contact details, which are
+  useless without the PII keys — store the keys **separately** from the dumps.
+- **Restore drill (every 3 months):** restore the latest dump into a scratch database
+  (`createdb drill && pg_restore --no-owner -d drill heirfinder-YYYY-MM-DD.dump`), run the app locally
+  against it with the production PII keys, open a case and one document, then drop the scratch database.
+  Write the date and the result in your records.
+
+## Restoring from a backup
+
+1. Stop changes: put the web service in maintenance (Render: suspend it) so nothing new is written.
+2. Restore to a **new** database (Render: point-in-time recovery creates one; or `pg_restore` a dump).
+3. Check it locally: cases, a document, the audit log's latest entries.
+4. Point `DATABASE_URL` at the restored database, resume the service, run `sh /app/migrate.sh` if
+   the code is newer than the backup.
+5. Anything done after the restore point (letters approved, payments recorded) must be redone —
+   check Lob, Stripe and Dropbox Sign dashboards for activity after that time.
+
+## Keys
+
+| Key | What it protects | If lost | If leaked |
+|-----|------------------|---------|-----------|
+| `PII_ENCRYPTION_KEY` | Heirs' email, phone, address; every stored document | Data can't be read — restore the key from your offline copy | Rotate it (below) and treat it as a possible breach |
+| `PII_HMAC_KEY` | Look-ups (do-not-contact matching, email matching), signed file links, portal links | Do-not-contact matching and portal links stop working | Change it: existing portal links and signed file links stop working (expected); re-enter do-not-contact entries made by email/address |
+| `BETTER_AUTH_SECRET` | Sessions, TOTP secrets, backup codes | Everyone must re-enrol 2FA | Change it: everyone is signed out and must re-enrol 2FA |
+
+### Rotating the encryption key
+
+1. Generate a new key: `openssl rand -base64 32`. Store it like the old one.
+2. In the host's environment: move the old key to `PII_PREVIOUS_KEYS` as `1=<old key>` (use the old
+   version number), put the new key in `PII_ENCRYPTION_KEY`, and set `PII_KEY_VERSION` to the next
+   number (e.g. `2`). Redeploy. New data is encrypted with the new key; old data stays readable.
+3. Re-encrypt everything (from a computer that can reach the database, with the same three variables):
+   `npm run keys:rotate -- --dry-run` (shows counts), then `npm run keys:rotate`.
+4. Run the dry run again: every count must be 0. Then remove `PII_PREVIOUS_KEYS` and redeploy.
+5. Destroy the old key's copies only after the next nightly backup has been made with the new key —
+   older backups still need the old key, so keep it with those backups until they expire.
+
+## Operators
+
+- **Add:** `npm run user:create -- --email them@yourfirm.com --name "Name" --role RESEARCHER` (or
+  `VIEWER`) against the production database (DEPLOYMENT.md step 4 shows how to connect). They enrol 2FA
+  on first sign-in. Give the least access that works: researchers can research and draft; only the
+  OWNER approves, overrides, changes rules and reads the audit log.
+- **Remove:** `npm run user:remove -- --email them@yourfirm.com` — signs them out everywhere and deletes
+  their password and 2FA, so they can't sign in again. Their past actions stay in the audit log.
+- **Lost authenticator (you):** use one of your backup codes. Without them, create a new OWNER account
+  with `user:create` and remove the old one.
+
+## Monitoring
+
+- External uptime check on `/api/health` every 5 minutes, alerting you by email/SMS.
+- Render: deploy-failure and service-health notifications on.
+- In the app: **Today** shows failed sends; **Notifications** shows opt-outs, returned mail, failed
+  payments. Check both daily (Daily routine above).
+- Logs (Render → Logs): the worker writes one line per nightly job (`[jobs] …`). A missing line means
+  the job didn't run — check that exactly one instance is running and `RUN_JOBS` isn't `false`.
+
+## Data retention
+
+A nightly job (03:23 Nevada time) applies the retention policy; the audit log records each case it
+touched (counts only):
+
+| When | What is removed |
+|------|-----------------|
+| 180 days after a case closes as lost (no heir, declined, self-claimed, ineligible) | heirs' contact details, heir messages, portal links, uploaded documents, claim packets |
+| 2 years after a case closes as won | uploaded documents and claim packets |
+| 7 years after any case closes | all of the above plus agreement PDFs and signed copies |
+
+Kept: names and the research record, invoices (7 years for tax), the audit log (PII is redacted when
+written) and the do-not-contact list (hashes only, so opt-outs are honoured forever). Preview with
+`npm run retention -- --dry-run`. Change the periods only with counsel's advice
+(`RETENTION_LOST_CASE_DAYS`, `RETENTION_WON_DOCUMENT_DAYS`, `RETENTION_RECORD_DAYS`). Stripe, Lob and
+Dropbox Sign keep their own copies under their retention rules — delete there too if a person asks.
+
+## Incident response and breach notification
+
+**Not legal advice — call counsel early.** A "breach" here is any unauthorized access to, or loss of,
+personal information: a leaked key, a stolen laptop with a database dump, a mistaken email to the wrong
+heir, a compromised account.
+
+1. **Contain (first hour).** Revoke what leaked: change passwords, remove sessions
+   (`npm run user:remove` for a compromised operator), rotate keys (above), revoke portal links of
+   affected heirs (case page). Suspend the service if the app itself is compromised.
+2. **Preserve evidence.** Export the audit log entries and host logs for the period before anything
+   is cleaned up. Note times in writing as you go.
+3. **Assess.** What information, about whom (which states/provinces they live in), how sensitive,
+   and how likely it is to be misused. Encrypted data whose key did *not* leak is lower risk.
+4. **Record.** Keep a written record of every breach, even small ones: what happened, when you found
+   out, what information, how many people, your risk assessment and what you did. Canadian law
+   (PIPEDA's breach regulations) requires keeping a record of **every** breach for 24 months.
+5. **Notify, with counsel:**
+   - **Nevada residents (NRS 603A.220):** notify affected residents whose personal information was
+     acquired, in the most expedient time possible and without unreasonable delay (a law-enforcement
+     request can justify a delay). If more than 1,000 Nevada residents are notified at one time, also
+     notify the nationwide consumer reporting agencies.
+   - **Residents of other states:** each state has its own notification law; counsel will check.
+   - **Canada (PIPEDA)** — the business is run from Ontario: if the breach creates a *real risk of
+     significant harm* to anyone, report it to the Office of the Privacy Commissioner of Canada and notify
+     the affected people as soon as feasible.
+   - Vendors whose data may be involved (e.g. Stripe, Lob), and your insurer if you have cyber cover.
+6. **Learn.** Fix the cause, add a test or check if it was a software issue, and update this document.

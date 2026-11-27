@@ -319,7 +319,8 @@ describe("follow-ups (day 21 / day 45) and stop rules", () => {
     const { c, heir } = await readyCase();
     const first = await createDraft(owner, { caseId: c.id, personId: heir.id, channel: "MAIL" });
     await approveAndSend(first.id);
-    await prisma.communication.update({ where: { id: first.id }, data: { sentAt: addDays(today, -19) } });
+    // Sent 19 days ago at midday in Nevada (20:00 UTC) — follow-ups count Nevada days.
+    await prisma.communication.update({ where: { id: first.id }, data: { sentAt: new Date(addDays(today, -19).getTime() + 20 * 3_600_000) } });
 
     const r = await draftDueFollowUps(today);
     expect(r.drafted).toBeGreaterThanOrEqual(1);

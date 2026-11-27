@@ -9,7 +9,7 @@ import "server-only";
 import { writeAudit } from "@/lib/audit";
 import { blindIndex, decryptPii, encryptPii, redactSsnLike } from "@/lib/crypto/pii";
 import { prisma } from "@/lib/db";
-import { todayIn } from "@/lib/dates";
+import { formatNevadaDate, todayIn } from "@/lib/dates";
 import { caseRef } from "@/lib/format";
 import { notifyCase } from "@/lib/notifications";
 import { readFile, saveFile } from "@/lib/files/storage";
@@ -109,14 +109,14 @@ export async function portalView(ctx: PortalContext) {
     emailHint: person.emailEnc ? maskEmail(decryptPii(person.emailEnc)) : null,
     optedOut: person.doNotContact,
     checklist,
-    documents: docs.map((d) => ({ id: d.id, key: d.checklistKey, fileName: nameOf.get(d.fileId) ?? "document", status: d.status, note: d.reviewNote, uploadedAt: d.createdAt.toISOString().slice(0, 10) })),
+    documents: docs.map((d) => ({ id: d.id, key: d.checklistKey, fileName: nameOf.get(d.fileId) ?? "document", status: d.status, note: d.reviewNote, uploadedAt: formatNevadaDate(d.createdAt) })),
     agreements: agreements.map((a) => ({
       id: a.id,
       reference: agreementReference(a),
       status: a.status,
       method: a.signatureMethod,
-      sentAt: a.sentAt?.toISOString().slice(0, 10) ?? null,
-      signedAt: a.signedAt?.toISOString().slice(0, 10) ?? null,
+      sentAt: formatNevadaDate(a.sentAt) ?? null,
+      signedAt: formatNevadaDate(a.signedAt) ?? null,
       hasSignedCopy: Boolean(a.signedFileKey),
       demoSigning: a.esignProvider === "mock-esign" && a.status === "SENT",
       esignVendor: a.esignProvider === "dropbox-sign" ? "Dropbox Sign" : null,
@@ -133,7 +133,7 @@ export async function portalView(ctx: PortalContext) {
       feeBps: i.feeBps,
       status: i.status,
       dueDate: i.dueDate?.toISOString().slice(0, 10) ?? null,
-      paidAt: i.paidAt?.toISOString().slice(0, 10) ?? null,
+      paidAt: formatNevadaDate(i.paidAt) ?? null,
       payUrl: i.paymentLinkUrl,
       demoPay: i.status === "OPEN" && i.provider === "mock-payments",
       manual: i.provider === "manual",

@@ -98,6 +98,19 @@ These are the defaults Phase 5 will build on unless you say otherwise:
 | 6 | **Data retention** | Contact details of heirs on closed-lost cases purged after 180 days; closed-won case records and invoices kept 7 years (tax/accounting); uploaded documents and claim packets deleted 2 years after the case closes. Founder and counsel to confirm. |
 | 7 | **Privacy policy** | `PRIVACY_POLICY_DRAFT.md` for the heir portal and letters (US + PIPEDA), clearly marked as needing legal review. |
 
+## Phase 7 decisions (hardening)
+
+| Topic | Decision |
+|-------|----------|
+| Security review | OWASP ASVS 4.0 level-2 self-review (SECURITY.md); no external penetration test yet. |
+| Content-Security-Policy | Nonce-based scripts everywhere; inline styles allowed (React style attributes and the sandboxed letter preview need them; every fetch is limited to our own origin, so injected CSS can't exfiltrate). |
+| Time zone | Every comparison between a timestamp and a calendar date uses Nevada time (America/Los_Angeles), matching "today" in the rules engine. |
+| Retention | 180 days after a lost case closes (contact details, heir messages, portal links, documents); 2 years for documents on won cases; 7 years for everything else incl. agreements. Names, the research record, invoices, the audit log and the do-not-contact hashes are kept. **Confirm with counsel.** |
+| Accessibility | WCAG 2.2 AA, checked automatically with axe-core on every main screen and in every flow; manual keyboard checks (skip link, focusable scroll areas). A screen-reader pass with a real user is still recommended. |
+| Deployment | Render example: one Docker web service (one instance) + paid Postgres with point-in-time recovery; migrations from the image as a pre-deploy step; rules ensured at startup. The image was built and started against an empty database to verify this. |
+| Breach notification | Runbook in OPERATIONS.md covers Nevada (NRS 603A.220) and Canada (PIPEDA breach regulations, Ontario operator); other states' laws to be checked case by case with counsel. |
+| Privacy policy | `PRIVACY_POLICY_DRAFT.md` — a draft for counsel, with placeholders. |
+
 ## Imports
 
 | Topic | Decision |
@@ -110,6 +123,10 @@ These are the defaults Phase 5 will build on unless you say otherwise:
 2. Mail and email accounts: create a Lob account (test + live keys) and decide which mailbox sends email.
 3. Attorney-approved letter, email and agreement text. Letters/emails: record it in Settings → Counsel approval (tied to template versions).
 4. People-search and death-data vendors (see `adapters/README.md`).
+5. Verify the Nevada claim forms, thresholds and mailing address in `CLAIM_REQUIREMENTS` v3 (unverified).
+6. Retention periods and the privacy policy, with counsel (Phase 7 table above).
+7. Hosting: Render is the worked example; confirm or choose another host (DEPLOYMENT.md → Other hosts).
+8. An external penetration test before scaling, and a cyber-insurance policy.
 
 ## Sources
 
@@ -126,3 +143,7 @@ These are the defaults Phase 5 will build on unless you say otherwise:
 - Nevada Treasurer — Unclaimed property claims contact: https://www.nevadatreasurer.gov/Contact/UP_Claims
 - Stripe — Invoicing integration quickstart: https://docs.stripe.com/invoicing/integration/quickstart · Sending invoices: https://docs.stripe.com/billing/invoices/sending
 - Stripe — Webhook signatures: https://docs.stripe.com/webhooks
+- Nevada security breach notification (NRS 603A.220): https://www.leg.state.nv.us/NRS/NRS-603A.html · Nevada AG data-breach notice page: https://ag.nv.gov/Hot_Topics/Notice_Regarding_Data_Breaches
+- PIPEDA mandatory breach reporting (OPC): https://www.priv.gc.ca/en/privacy-topics/business-privacy/safeguards-and-breaches/privacy-breaches/respond-to-a-privacy-breach-at-your-business/gd_pb_201810/ · Breach of Security Safeguards Regulations SOR/2018-64: https://gazette.gc.ca/rp-pr/p2/2018/2018-04-18/html/sor-dors64-eng.html
+- Next.js Content Security Policy guide (bundled docs: node_modules/next/dist/docs/01-app/02-guides/content-security-policy.md)
+- Render: Postgres backups and PITR: https://render.com/docs/postgresql-backups · Blueprint reference: https://render.com/docs/blueprint-spec · multi-stage target request: https://feedback.render.com/features/p/support-docker-multistage-target-in-renderyaml

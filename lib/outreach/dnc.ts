@@ -11,6 +11,7 @@ import { blindIndex } from "@/lib/crypto/pii";
 import { prisma, type DbClient } from "@/lib/db";
 import { normalizeAddress } from "@/lib/normalize/address";
 import { normalizeWhitespaceUpper } from "./util";
+import { formatNevadaDate } from "@/lib/dates";
 
 export function emailHashOf(email: string | null | undefined): string | null {
   const e = email?.trim().toLowerCase();
@@ -42,7 +43,7 @@ export async function checkDoNotContact(
   const hit = await db.doNotContact.findFirst({ where: { OR: or }, orderBy: { createdAt: "asc" } });
   if (!hit) return { blocked: false, reason: null, entryId: null };
   const how = q.emailHash && hit.emailHash === q.emailHash ? "email address" : q.addressHash && hit.addressHash === q.addressHash ? "mailing address" : "name";
-  return { blocked: true, reason: `Do-not-contact list (matched by ${how}, added ${hit.createdAt.toISOString().slice(0, 10)}: ${hit.reason}).`, entryId: hit.id };
+  return { blocked: true, reason: `Do-not-contact list (matched by ${how}, added ${formatNevadaDate(hit.createdAt)}: ${hit.reason}).`, entryId: hit.id };
 }
 
 export type DncInput = { name?: string | null; email?: string | null; address?: string | null; reason: string };

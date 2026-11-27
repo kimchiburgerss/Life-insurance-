@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { expect, test } from "@playwright/test";
+import { expect, expectAccessible, test } from "./fixtures";
 import { OWNER, signIn } from "./helpers";
 
 // Each run gets its own property IDs and fully random surnames. (Appending a
@@ -31,6 +31,7 @@ test("import → map → review → screen → case page", async ({ page }) => {
   await expect(page.getByLabel("State property ID *")).toHaveValue("Property ID");
   await expect(page.getByLabel("Amount")).toHaveValue("Cash Reported");
   await expect(page.getByLabel("Date delivered (remitted) to the state")).toHaveValue("Date Remitted");
+  await expectAccessible(page, "import column mapping");
 
   // Preview
   await page.getByRole("button", { name: "Preview how rows will be imported" }).click();

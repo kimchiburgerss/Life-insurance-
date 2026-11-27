@@ -6,6 +6,7 @@ import { sendDueReminders } from "@/lib/billing/gateway";
 import { draftDueFollowUps } from "@/lib/outreach/followups";
 import { dispatchDue } from "@/lib/outreach/gateway";
 import { rescoreOpenCases } from "@/lib/screening/maintenance";
+import { runRetention } from "@/lib/retention/purge";
 import { getBoss, QUEUES } from "./queue";
 
 const globalForWorker = globalThis as unknown as { workerStarted?: boolean };
@@ -40,6 +41,10 @@ export async function startWorker(): Promise<void> {
     const r = await sendDueReminders();
     if (r.sent || r.manual) console.log(`[jobs] invoice reminders: ${r.sent} re-sent, ${r.manual} manual flagged`);
   });
+  await boss.work(QUEUES.retention, async () => {
+    const r = await runRetention();
+    if (r.cases) console.log(`[jobs] retention: ${r.cases} cases, ${r.contactPurgedPeople} people's contact details, ${r.filesPurged} files purged`);
+  });
   await boss.schedule(QUEUES.outreachDispatch, "*/5 * * * *", null, { tz: "America/Los_Angeles" });
   // 09:37 in Nevada: invoice reminders go out in business hours.
   await boss.schedule(QUEUES.invoiceReminders, "37 9 * * *", null, { tz: "America/Los_Angeles" });
@@ -49,5 +54,7 @@ export async function startWorker(): Promise<void> {
   await boss.schedule(QUEUES.unlock, "13 0 * * *", null, { tz: "America/Los_Angeles" });
   // 02:41 in Nevada every night.
   await boss.schedule(QUEUES.rescore, "41 2 * * *", null, { tz: "America/Los_Angeles" });
+  // 03:23 in Nevada every night.
+  await boss.schedule(QUEUES.retention, "23 3 * * *", null, { tz: "America/Los_Angeles" });
   console.log("[jobs] worker started");
 }

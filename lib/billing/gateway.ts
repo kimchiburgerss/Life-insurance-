@@ -9,7 +9,7 @@ import { writeAudit } from "@/lib/audit";
 import { can, ForbiddenError } from "@/lib/auth/permissions";
 import { transitionCase } from "@/lib/case/transitions";
 import { prisma } from "@/lib/db";
-import { addDays, toDateOnly, todayIn } from "@/lib/dates";
+import { addDays, dateInNevada, toDateOnly, todayIn } from "@/lib/dates";
 import type { Role } from "@/lib/generated/prisma/enums";
 import { notifyCase } from "@/lib/notifications";
 import { getPaymentsProvider, MockPaymentsProvider } from "@/adapters/payments";
@@ -74,7 +74,7 @@ export async function sendDueReminders(today: Date = todayIn()): Promise<{ sent:
   let manual = 0;
   for (const inv of open) {
     const done = ((Array.isArray(inv.remindersSent) ? inv.remindersSent : []) as { day: number }[]).map((r) => r.day);
-    const age = Math.floor((today.getTime() - toDateOnly(inv.issuedAt!).getTime()) / 86_400_000);
+    const age = Math.floor((today.getTime() - dateInNevada(inv.issuedAt!).getTime()) / 86_400_000);
     const due = REMINDER_DAYS.filter((d) => age >= d && !done.includes(d));
     if (!due.length) continue;
     const day = due[due.length - 1]!;

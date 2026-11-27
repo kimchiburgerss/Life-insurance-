@@ -11,6 +11,7 @@ export const UNENROLLED_FILE = "test-results/.unenrolled-user.json";
 export const OUTREACH_CASE_FILE = "test-results/.outreach-case.json";
 export const AGREEMENT_CASE_FILE = "test-results/.agreement-case.json";
 export const CLAIM_CASE_FILE = "test-results/.claim-case.json";
+export const LATER_STAGES_FILE = "test-results/.later-stages.json";
 
 export default function globalSetup() {
   const creds = {
@@ -27,4 +28,5 @@ export default function globalSetup() {
   execFileSync("npx", ["tsx", "--conditions=react-server", "tests/e2e/provision-outreach-case.ts", OUTREACH_CASE_FILE], { stdio: "inherit" });
   execFileSync("npx", ["tsx", "--conditions=react-server", "tests/e2e/provision-agreement-case.ts", AGREEMENT_CASE_FILE], { stdio: "inherit" });
   execFileSync("npx", ["tsx", "--conditions=react-server", "tests/e2e/provision-claim-case.ts", CLAIM_CASE_FILE], { stdio: "inherit" });
+  execFileSync("npx", ["tsx", "--conditions=react-server", "tests/e2e/provision-later-stages.ts", LATER_STAGES_FILE], { stdio: "inherit" });
 }

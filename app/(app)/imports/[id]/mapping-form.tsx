@@ -1,7 +1,7 @@
 "use client";
 
 import { startTransition, useActionState, useState } from "react";
-import { Alert, Badge, Button, Card } from "@/components/ui";
+import { Alert, Badge, Button, Card, ScrollRegion } from "@/components/ui";
 import type { ImportMapping } from "@/lib/import/fields";
 import { previewMapping, startImport, type MappingState } from "../actions";
 
@@ -138,7 +138,7 @@ export function MappingForm(props: {
       </Card>
 
       <Card title="2. Check a preview">
-        <div className="mb-3 overflow-x-auto">
+        <ScrollRegion label="File preview" className="mb-3">
           <table className="w-full text-left text-xs">
             <caption className="mb-1 text-left text-sm text-slate-600">First rows of the file as uploaded</caption>
             <thead>
@@ -162,12 +162,12 @@ export function MappingForm(props: {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
         <Button type="button" onClick={() => submit(previewAction)} variant="secondary" disabled={previewPending}>
           {previewPending ? "Checking…" : "Preview how rows will be imported"}
         </Button>
         {previewState.preview ? (
-          <div className="mt-4 overflow-x-auto">
+          <ScrollRegion label="Import preview" className="mt-4">
             <p className="mb-2 text-sm" role="status">
               {previewState.previewTotal} rows · {previewState.previewErrors} would be skipped with an error.
             </p>
@@ -216,7 +216,7 @@ export function MappingForm(props: {
                 )}
               </tbody>
             </table>
-          </div>
+          </ScrollRegion>
         ) : null}
       </Card>
 

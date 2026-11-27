@@ -6,6 +6,7 @@
  */
 import "server-only";
 import { z } from "zod";
+import { webUrl } from "@/lib/security/url";
 import { writeAudit } from "@/lib/audit";
 import { prisma, type DbClient } from "@/lib/db";
 
@@ -33,7 +34,7 @@ export const BusinessProfileSchema = z.object({
     .regex(/^[0-9 ()+.-]{10,20}$/, "Enter a phone number a real person answers"),
   /** Mailbox emails are sent from and replies go to. */
   email: z.string().trim().toLowerCase().email("Enter a valid email address"),
-  website: z.string().trim().url("Enter a full URL (https://…)").optional().or(z.literal("")).default(""),
+  website: webUrl("Enter a full URL (https://…)").optional().or(z.literal("")).default(""),
 });
 export type BusinessProfile = z.infer<typeof BusinessProfileSchema>;
 

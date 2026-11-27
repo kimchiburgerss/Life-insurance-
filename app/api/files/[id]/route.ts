@@ -36,7 +36,10 @@ export async function GET(request: Request, ctx: RouteContext<"/api/files/[id]">
       "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${file.meta.fileName.replace(/["\\\r\n]/g, "_")}"`,
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
-      ...(generated ? {} : { "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self' data:" }),
+      // Generated PDFs are previewed in iframes on our own pages; heir uploads are never framed or run.
+      ...(generated
+        ? { "X-Frame-Options": "SAMEORIGIN", "Content-Security-Policy": "frame-ancestors 'self'" }
+        : { "X-Frame-Options": "DENY", "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self' data:; frame-ancestors 'none'" }),
     },
   });
 }

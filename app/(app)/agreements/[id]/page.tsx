@@ -12,6 +12,7 @@ import { signedFileUrl } from "@/lib/files/storage";
 import { agreementReference, evaluateAgreement, signerOf } from "@/lib/agreements/service";
 import { esignProviderStatus } from "@/adapters/esign/status";
 import { ApproveAgreementForm, CancelAgreementForm, PaperSignatureForm, RejectAgreementForm, RetryAgreementForm } from "./agreement-forms";
+import { formatNevadaDate } from "@/lib/dates";
 
 export const metadata: Metadata = { title: "Agreement" };
 
@@ -73,8 +74,8 @@ export default async function AgreementPage({ params }: PageProps<"/agreements/[
         </p>
       </div>
 
-      {a.status === "SENT" ? <Alert tone="info">Sent {a.sentAt?.toISOString().slice(0, 10)} for {a.signatureMethod === "PAPER" ? "paper signature — print it, mail it, and record the signed copy below" : `electronic signature (${a.esignProvider})`}.</Alert> : null}
-      {a.status === "SIGNED" ? <Alert tone="info">Signed {a.signedAt?.toISOString().slice(0, 10)}.</Alert> : null}
+      {a.status === "SENT" ? <Alert tone="info">Sent {formatNevadaDate(a.sentAt)} for {a.signatureMethod === "PAPER" ? "paper signature — print it, mail it, and record the signed copy below" : `electronic signature (${a.esignProvider})`}.</Alert> : null}
+      {a.status === "SIGNED" ? <Alert tone="info">Signed {formatNevadaDate(a.signedAt)}.</Alert> : null}
       {a.statusReason ? <Alert tone="warning">{a.statusReason}</Alert> : null}
       {a.status === "APPROVED" && events.at(-1)?.type === "send_failed" ? <Alert>Sending failed: {events.at(-1)?.detail}</Alert> : null}
 

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { expect, test } from "@playwright/test";
+import { expect, expectAccessible, test } from "./fixtures";
 import { totp } from "../../lib/auth/totp";
 import { UNENROLLED_FILE } from "./global-setup";
 import { DEMO_TOTP_SECRET, OWNER, signIn, signInWithPassword, VIEWER } from "./helpers";
@@ -41,6 +41,7 @@ test("a new operator must enroll TOTP before reaching any page", async ({ page }
   await page.getByLabel("Password").fill(creds.password);
   await page.getByRole("button", { name: "Start setup" }).click();
   await expect(page.getByRole("img", { name: /QR code/ })).toBeVisible();
+  await expectAccessible(page, "/setup-2fa");
   const secret = (await page.locator("code").first().textContent())!.trim();
   await page.getByLabel("6-digit code").fill(totp(secret));
   await page.getByRole("button", { name: "Turn on two-factor" }).click();

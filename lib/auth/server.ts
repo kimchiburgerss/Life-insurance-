@@ -4,6 +4,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { twoFactor } from "better-auth/plugins";
 import { prisma } from "@/lib/db";
+import { totpReplayAfter, totpReplayBefore } from "./totp-replay";
 
 export const APP_NAME = "Heir Finder";
 
@@ -61,6 +62,8 @@ export const auth = betterAuth({
   advanced: {
     useSecureCookies: process.env.NODE_ENV === "production",
   },
+  // TOTP codes are single-use within their validity window (lib/auth/totp-replay.ts).
+  hooks: { before: totpReplayBefore, after: totpReplayAfter },
   plugins: [
     twoFactor({
       issuer: APP_NAME,

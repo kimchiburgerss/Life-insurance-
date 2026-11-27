@@ -41,6 +41,33 @@ export function toDateOnly(date: Date): Date {
   );
 }
 
+/**
+ * The calendar date, in Nevada, of a moment in time (a send, signature or
+ * payment timestamp). Use this — not toDateOnly(), which keeps the UTC date —
+ * whenever a timestamp is compared with a legal or business date: after 4 pm
+ * Pacific the UTC date is already tomorrow.
+ */
+export function dateInNevada(instant: Date): Date {
+  return todayIn("America/Los_Angeles", instant);
+}
+
+/**
+ * The Nevada calendar date of a stored value. Date-only values (kept as UTC
+ * midnight, e.g. a date someone typed) are returned unchanged; real
+ * timestamps (sent, e-signed, paid online) are converted with dateInNevada().
+ */
+export function nevadaDateOf(value: Date): Date {
+  const midnight = value.getUTCHours() === 0 && value.getUTCMinutes() === 0 && value.getUTCSeconds() === 0 && value.getUTCMilliseconds() === 0;
+  return midnight ? value : dateInNevada(value);
+}
+
+/** YYYY-MM-DD in Nevada, for showing a stored date or timestamp. */
+export function formatNevadaDate(value: Date): string;
+export function formatNevadaDate(value: Date | null | undefined): string | undefined;
+export function formatNevadaDate(value: Date | null | undefined): string | undefined {
+  return value ? formatDateOnly(nevadaDateOf(value)) : undefined;
+}
+
 /** Today's calendar date in the given IANA time zone (default: Nevada). */
 export function todayIn(timeZone = "America/Los_Angeles", now = new Date()): Date {
   const parts = new Intl.DateTimeFormat("en-CA", {

@@ -106,7 +106,7 @@ export default async function PipelinePage({ searchParams }: PageProps<"/pipelin
         ) : null}
       </form>
 
-      <div className="flex gap-3 overflow-x-auto pb-4" aria-label="Pipeline board">
+      <div role="region" tabIndex={0} className="flex gap-3 overflow-x-auto pb-4 focus-visible:outline-2 focus-visible:outline-sky-700" aria-label="Pipeline board">
         {columns.map((col, i) => {
           const total = col.stages.reduce((n, s) => n + (countFor.get(s) ?? 0), 0);
           return (

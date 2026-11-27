@@ -1,7 +1,8 @@
 # Security
 
-This file describes the security controls in place after **Phase 6** and what
-is still to come. The full security review is Phase 7.
+This file describes the security controls in place after **Phase 7** (hardening),
+the self-review they came from, and the gaps that remain. Day-to-day security
+procedures (keys, backups, operators, incidents) are in [OPERATIONS.md](OPERATIONS.md).
 
 ## Controls in place
 
@@ -15,7 +16,14 @@ is still to come. The full security review is Phase 7.
 | Authorization | Least-privilege roles (OWNER / RESEARCHER / VIEWER) checked server-side on every page and action through the data-access layer. The proxy only does an optimistic redirect | `lib/auth/permissions.ts`, `lib/auth/session.ts`, `proxy.ts` |
 | PII at rest | Heir email, phone and address are AES-256-GCM encrypted per field with versioned ciphertext. Equality lookups use HMAC-SHA256 blind indexes under a **separate** key. SSNs are never stored | `lib/crypto/pii.ts`, `prisma/schema.prisma` (`*Enc`, `*Hash`) |
 | Audit | Append-only audit log enforced by a database trigger. PII and secrets are redacted before writing | `lib/audit.ts`, init migration |
-| Headers | HSTS, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, restrictive `Permissions-Policy`; `X-Powered-By` removed; `robots.txt` disallows indexing | `next.config.ts`, `public/robots.txt` |
+| Headers | HSTS, `X-Frame-Options: DENY` (our own PDF previews may be framed by our pages only), `nosniff`, `Referrer-Policy: no-referrer`, restrictive `Permissions-Policy`, `Cross-Origin-Opener-Policy: same-origin`; `X-Powered-By` removed; `robots.txt` disallows indexing | `next.config.ts`, `app/api/files/[id]`, `public/robots.txt` |
+| Content-Security-Policy | Every page (console, login, heir portal, opt-out) gets a per-request nonce: only our own nonced scripts run (`'strict-dynamic'`), nothing loads from other origins, no plugins, `base-uri`/`form-action` `'self'`, no framing by other sites; `upgrade-insecure-requests` on HTTPS. Styles allow inline (React style attributes, the sandboxed letter preview); with every fetch limited to `'self'`, injected CSS can't send data out. All pages render per request so they carry the nonce. Every E2E test fails on a CSP or framing violation | `proxy.ts`, `lib/security/csp.ts`, `app/layout.tsx`, `tests/e2e/fixtures.ts` |
+| One-time TOTP codes | A code that signed someone in can't be used again within its validity window (claimed atomically per user before verification; released if verification fails) | `lib/auth/totp-replay.ts`, `used_totp_codes` |
+| API routes | The proxy doesn't run on `/api/*` (so uploads aren't cut off at its 10 MB buffer); each route checks its own operator session, heir portal session, webhook signature or opt-out token — a static test fails if one doesn't | `tests/unit/api-routes-authenticate.test.ts` |
+| Links we render | URLs stored in settings and rules must be `http(s)` (no `javascript:`/`data:`); React 19 and the CSP block script URLs as well | `lib/security/url.ts` |
+| Retention | Nightly purge of contact details, heir messages, portal links and documents on schedule (OPERATIONS.md → Data retention) | `lib/retention/purge.ts` |
+| Key rotation | Versioned ciphertext (`v<N>`), old keys readable from `PII_PREVIOUS_KEYS`, `npm run keys:rotate` re-encrypts every field and document; a database exception lets only the rotation script re-encrypt an approved message's recipient | `lib/crypto/keys.ts`, `lib/crypto/rotate.ts`, migration `20261126130000_key_rotation` |
+| Operator removal | `npm run user:remove` ends sessions and deletes password and 2FA credentials; refuses to remove the last OWNER | `scripts/remove-user-access.ts` |
 | Caching | Cache Components is off, so PII is never put in a shared server cache | `next.config.ts` |
 | File uploads | Authenticated route (`import:run` permission, 2FA required); type checked by extension and parsed with maintained parsers (papaparse, read-excel-file); size limit (`IMPORT_MAX_MB`, default 50 MB) and row limit (500,000). The route is excluded from the proxy because the proxy would silently drop body bytes past 10 MB. Raw files are deleted from the database once processed; the same file can't be imported twice by accident (SHA-256 check) | `app/api/imports/route.ts`, `lib/import/*` |
 | Dependencies | `npm audit` clean. The `effect` package (pulled in by the Prisma CLI) is pinned to the patched 3.22.5 via `overrides` (ReDoS advisory GHSA-7589-6fvf-x4pw) | `package.json` |
@@ -38,19 +46,38 @@ is still to come. The full security review is Phase 7.
 | Containers | Multi-stage image, non-root user, no build tools in the runtime image | `Dockerfile` |
 | Secrets | Only in environment variables / the host's secret store. `.env` is git-ignored | `.env.example` |
 
-## Known gaps (planned)
+## Phase 7 self-review (OWASP ASVS 4.0, level 2)
 
-- **TOTP replay window.** The auth library doesn't remember used codes, so one
-  code can be reused within its ~30–90 s window. The password requirement,
-  lockout and rate limit reduce the risk. Phase 7 will add a used-code check.
-- **Malware scanning** of heir uploads is not done; uploads are limited to document/photo formats checked by their bytes and are never rendered inside the app's pages. Add a scanner (e.g. ClamAV) if volume grows.
+A structured review of the code against the ASVS level-2 chapters. Not an
+external penetration test — commission one before handling volume.
+
+| Chapter | Result | Fixed in Phase 7 |
+|---------|--------|------------------|
+| V1 Architecture | Single send/e-sign/payment gateways, rules as data, append-only audit, DB triggers backing every approval gate | — |
+| V2 Authentication | Password (min 12, scrypt) + mandatory TOTP, lockout, DB rate limits, no public sign-up | TOTP codes single-use |
+| V3 Sessions | DB sessions (revocable), 12 h, httpOnly/SameSite=Lax/Secure cookies; heir portal has separate HMAC-stored sessions | Operator removal script ends all sessions |
+| V4 Access control | Server-side role checks in the data-access layer and services; heir sees only their own records | Static test: every API route has its own check (the proxy no longer covers `/api`) |
+| V5 Validation, encoding | Zod on inputs, Prisma (parameterized; raw SQL uses tagged templates), escaped letter rendering in a sandboxed iframe, magic-byte file typing | URL fields restricted to `http(s)` |
+| V7 Errors, logging | Audit log with PII redaction; production error pages without stack traces | — |
+| V8 Data protection | Field + file encryption, no SSNs, `no-store` on files, dynamic rendering (no shared cache) | Retention purge; key rotation |
+| V9 Communications | HSTS; TLS at the host; webhooks verified (Lob, Dropbox Sign, Stripe) | `upgrade-insecure-requests` on HTTPS |
+| V10 Malicious code | `npm audit` clean, exact version pins, committed lockfile, CI installs with `npm ci` | — |
+| V12 Files | Size limits, sniffed types, encrypted at rest, served as attachments with a sandbox CSP | Uploads up to 15 MB no longer truncated by the proxy (operator claim documents and paper signatures were affected) |
+| V13 API | SameSite cookies + origin checks against CSRF; webhook signatures, freshness and idempotency | — |
+| V14 Configuration | Security headers, secrets only in the environment, non-root container | Nonce CSP on every page, COOP, framing policy fixed for our own PDF previews |
+
+Correctness bugs found in the same review and fixed: dates of timestamps were
+taken in UTC, so after 4 pm Pacific an e-signature, paper signature, payment or
+send could be counted on the next day — including the **24-month void-period
+check on e-signatures** (now `dateInNevada()`, with tests).
+
+## Known gaps
+
+- **Malware scanning** of heir uploads is not done; uploads are limited to document/photo formats checked by their bytes, stored encrypted and never rendered inside the app's pages. Add a scanner (e.g. ClamAV) if volume grows.
 - **Object storage**: documents live encrypted in Postgres; move to S3-compatible storage (same interface in `lib/files/storage.ts`) if the database grows large.
-- A **Content-Security-Policy** with nonces (Phase 7).
-- **Restricted Stripe key**: the app needs only Customers and Invoices (write) and Invoice items (write); create a restricted key with just those instead of the full secret key (Phase 7 deployment guide).
-- **PII retention purge** for closed-lost cases, default 180 days (`Person.piiPurgedAt` is ready; job arrives with the background worker).
-- **Key rotation** for `PII_ENCRYPTION_KEY` (the `v1:` prefix allows it; tooling in Phase 7).
-- **Backups:** nightly `pg_dump` procedure and restore drill (Phase 7, `OPERATIONS.md`).
-- `PRIVACY_POLICY_DRAFT.md` (US + Canadian PIPEDA, operator in Ontario) comes in Phase 7 and is marked as needing legal review.
+- **External penetration test**: not done (recommended before scaling).
+- **`PII_HMAC_KEY` rotation** isn't automated: blind indexes for do-not-contact entries made by email/address can't be recomputed without the original values (see OPERATIONS.md → Keys).
+- **Single instance**: the background worker runs in the web process; a second instance needs `RUN_JOBS=false`.
 
 ## Operational rules
 

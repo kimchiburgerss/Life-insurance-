@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Badge, Card } from "@/components/ui";
+import { Badge, Card, ScrollRegion } from "@/components/ui";
 import { can } from "@/lib/auth/permissions";
 import { requireOperator } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
@@ -70,19 +70,23 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
       <Card
         title={
           <span className="flex items-center justify-between gap-2">
-            <Link href={`/calendar?month=${monthKey(prev)}`} className="text-sm font-normal underline" aria-label="Previous month">
-              ← {MONTH_NAMES[prev.getUTCMonth()]}
+            <Link href={`/calendar?month=${monthKey(prev)}`} className="text-sm font-normal underline">
+              <span aria-hidden>← </span>
+              {MONTH_NAMES[prev.getUTCMonth()]}
+              <span className="sr-only"> (previous month)</span>
             </Link>
             <span>
               {MONTH_NAMES[first.getUTCMonth()]} {first.getUTCFullYear()}
             </span>
-            <Link href={`/calendar?month=${monthKey(next)}`} className="text-sm font-normal underline" aria-label="Next month">
-              {MONTH_NAMES[next.getUTCMonth()]} →
+            <Link href={`/calendar?month=${monthKey(next)}`} className="text-sm font-normal underline">
+              {MONTH_NAMES[next.getUTCMonth()]}
+              <span className="sr-only"> (next month)</span>
+              <span aria-hidden> →</span>
             </Link>
           </span>
         }
       >
-        <div className="overflow-x-auto">
+        <ScrollRegion label="Calendar">
           <table className="w-full min-w-[42rem] table-fixed border-collapse text-sm">
             <caption className="sr-only">Cases unlocking each day this month</caption>
             <thead>
@@ -99,7 +103,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
                 <tr key={w}>
                   {cells.slice(w * 7, w * 7 + 7).map((d, i) => (
                     <td key={i} className={`h-24 border border-slate-100 p-1 align-top ${d && isToday(d) ? "bg-sky-50" : ""}`}>
-                      {d ? <span className="text-xs text-slate-500">{d}</span> : null}
+                      {d ? <span className="text-xs text-slate-600">{d}</span> : null}
                       {d
                         ? byDay.get(d)?.map((c) => (
                             <Link key={c.id} href={`/cases/${c.id}`} className="mt-1 block truncate rounded bg-amber-100 px-1 text-xs hover:underline">
@@ -113,7 +117,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       </Card>
 
       <Card title="Unlocking in the next 90 days">

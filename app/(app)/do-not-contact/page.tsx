@@ -4,6 +4,7 @@ import { can } from "@/lib/auth/permissions";
 import { requireOperator } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { AddDncForm, RemoveDncForm } from "./dnc-forms";
+import { formatNevadaDate } from "@/lib/dates";
 
 export const metadata: Metadata = { title: "Do not contact" };
 
@@ -50,7 +51,7 @@ export default async function DoNotContactPage() {
                     </span>
                   </td>
                   <td className="py-2 pr-3">{e.reason}</td>
-                  <td className="py-2 pr-3 whitespace-nowrap">{e.createdAt.toISOString().slice(0, 10)}</td>
+                  <td className="py-2 pr-3 whitespace-nowrap">{formatNevadaDate(e.createdAt)}</td>
                   {can(operator.role, "compliance:override") ? (
                     <td className="py-2">
                       <RemoveDncForm id={e.id} />

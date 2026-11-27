@@ -4,9 +4,10 @@ An operator console that lets one person do the research, matching, drafting
 and case management of a small heir-finding firm. A human stays in the loop for
 every outbound contact and every legal document.
 
-> **Status: Phase 6 (Claims & billing) complete.** See [Build phases](#build-phases).
+> **Status: all 7 phases complete (Phase 7: hardening).** See [Build phases](#build-phases).
 > Compliance rules and where they are enforced: [COMPLIANCE.md](COMPLIANCE.md).
-> Security controls: [SECURITY.md](SECURITY.md). Day-to-day procedures (approvals, calls, opt-outs, filing claims, invoices):
+> Security controls and the ASVS self-review: [SECURITY.md](SECURITY.md). Going live: [DEPLOYMENT.md](DEPLOYMENT.md).
+> Privacy policy (draft for counsel): [PRIVACY_POLICY_DRAFT.md](PRIVACY_POLICY_DRAFT.md). Day-to-day procedures (approvals, calls, opt-outs, filing claims, invoices):
 > [OPERATIONS.md](OPERATIONS.md). Research findings and open legal questions: [ASSUMPTIONS.md](ASSUMPTIONS.md).
 
 ## Quick start (demo, mock mode)
@@ -61,13 +62,16 @@ docker compose --profile app up --build   # Postgres + migrations/seed + app on 
 | `npm test` | Unit and integration tests (Vitest) |
 | `npm run test:unit` | Pure logic: dates, rules, state machine, crypto (no database) |
 | `npm run test:integration` | Against `*_test` database: audit log, transitions, rules, auth |
-| `npm run test:e2e` | Playwright: login + 2FA, enrollment, roles, rule verification (needs a seeded DB) |
+| `npm run test:e2e` | Playwright (21 tests): every workflow from import to a closed-won case, letters, opt-out, returned mail, agreements (e-sign and paper), claims (incl. re-filing), invoices (incl. corrections), roles, plus WCAG 2.2 AA checks (axe-core) and a CSP-violation guard on every test. Runs on its own fresh `<db>_e2e` database (created, migrated and seeded each run) on port 3100 |
 | `npm run evals` | AI eval suites in `/evals`: scores the rule-based baseline for free. `EVAL_LIVE=1 npm run evals` scores Claude with the current prompt (needs `ANTHROPIC_API_KEY`; costs money, prints the total) |
 | `npm run db:migrate` | Apply migrations (`prisma migrate deploy`) |
 | `npm run db:seed` | Seed jurisdiction rules, plus fake demo data unless `SEED_DEMO=false` or production |
 | `npm run db:reset` | Drop, re-migrate and re-seed the dev database (destructive) |
 | `npm run user:create -- --email … --name "…" --role OWNER` | Create a real operator (prompts for a password; 2FA enrolled at first login) |
+| `npm run user:remove -- --email …` | Remove an operator's access (signs out, deletes password and 2FA; keeps their history) |
 | `npm run cases:rescore` | Recompute priority scores, expected values and eligibility for all open cases (also runs nightly) |
+| `npm run retention [-- --dry-run]` | Apply (or preview) the data-retention policy (also runs nightly) |
+| `npm run keys:rotate [-- --dry-run]` | Re-encrypt stored contact details and documents with the current key (OPERATIONS.md → Keys) |
 
 ## Tech stack and why
 
@@ -214,19 +218,12 @@ case at Responded so you can try the heir's side.
 
 In mock mode Stripe is replaced by an in-memory mock, and the heir's page shows **Pay invoice (demo)**.
 
-## Deployment (summary; full guide in Phase 7)
+## Deployment
 
-- Any host that runs a Docker image and offers managed Postgres works (Render,
-  Fly.io, Railway). Build the `runner` target of the `Dockerfile`. On each
-  release, run the `migrate` target with `SEED_DEMO=false`.
-- Set `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (your HTTPS URL),
-  `PII_ENCRYPTION_KEY`, `PII_HMAC_KEY` and `MOCK_MODE` in the host's secret store; for outreach also
-  `PUBLIC_APP_URL`, `LOB_API_KEY`, `LOB_WEBHOOK_SECRET` and `SMTP_*`; for agreements `DROPBOX_SIGN_API_KEY`
-  (and `DROPBOX_SIGN_TEST_MODE=false` only once the attorney-approved agreement is switched on); for
-  invoices `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` (webhook URL `<PUBLIC_APP_URL>/api/webhooks/stripe`).
-- Health check: `GET /api/health`.
-- Create the first operator with `npm run user:create` from a shell that can
-  reach the production database. Never seed demo data in production.
+See **[DEPLOYMENT.md](DEPLOYMENT.md)**: Render Blueprint (`render.yaml`) with one Docker web service and
+managed Postgres, migrations as a pre-deploy step (`sh /app/migrate.sh` from the image), custom domain,
+first owner account, vendor webhooks, releases and rollbacks, and notes for other hosts. Health check:
+`GET /api/health`. Never seed demo data in production.
 
 ## Build phases
 
@@ -236,7 +233,7 @@ In mock mode Stripe is replaced by an in-memory mock, and the heir's page shows 
 4. **Outreach**: done. Markdown letter/email templates (first contact, day-21, day-45, public-records FAQ insert) that must contain every required element; safe renderer; AI personal note + AI tone check (with eval set) + banned-terms lint + exact-amount check + reading level; compliance checklist; approval queue with side-by-side preview, edit and reject; single send gateway (Lob letters, SMTP email, mocks) backed by database triggers; auto-move to Contacted; follow-up scheduler; reply/opt-out stop rules; do-not-contact list across cases; one-click unsubscribe; Lob delivery webhooks; Settings (business profile, fee, counsel sign-off, service status); Today view shows approvals and follow-ups due.
 5. **Agreements & portal**: done. Agreement PDF generated from case data with rule validation (fee-cap refusal, void period, exact values, required terms), DRAFT marking until an attorney-approved version is uploaded and switched on, OWNER approval of the exact PDF, single e-sign gateway (Dropbox Sign + mock) with verified webhooks, paper-signature path, automatic Agreement sent/signed stages; heir portal (unique link in every letter, sessions, rate limits, free-claim first, status, messages, call requests, email capture, encrypted document uploads, agreement view and demo signing, large-text option); operator review of uploads; portal link management.
 6. **Claims & billing**: done. Claim packet builder driven by `CLAIM_REQUIREMENTS` v3 (Nevada forms chosen from the estate facts, nothing dropped silently, waivers OWNER-only), operator uploads, AI document review (PDF and photos; name/date/notarization checks against the case; suggestion only), one assembled PDF (cover letter + labelled enclosures) approved by the OWNER and frozen by a database trigger, filing and State-decision tracking with notifications, heir download in the portal; fee invoices computed from the amount the State actually paid, OWNER approval of the exact invoice, single payments gateway (Stripe Invoicing + mock + manual), 7/14/30-day reminders, verified Stripe webhooks, automatic Paid-to-heir / Fee invoiced / Fee collected stages; Metrics page (funnel, revenue, costs per case, response rates, break-even) with unit-cost settings.
-7. Hardening: security review, accessibility pass, full E2E suite, deployment guide, `OPERATIONS.md`.
+7. **Hardening**: done. OWASP ASVS level-2 self-review (SECURITY.md) with fixes: nonce-based Content-Security-Policy on every page, single-use TOTP codes, every API route checks its own access (static test), http(s)-only stored links, framing policy, uploads no longer cut off by the proxy; Nevada-time date handling for timestamps (incl. the e-signature void-period check); nightly data-retention purge; encryption-key rotation; operator removal; WCAG 2.2 AA fixes and automated axe checks; full E2E suite on an isolated database (21 tests); deployment guide with a tested Docker image and Render Blueprint; OPERATIONS.md (pre-launch checklist, backups and restore, keys, operators, monitoring, retention, incident response and breach notification); privacy policy draft.
 
 ## Upgrading Better Auth
 

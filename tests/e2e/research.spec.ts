@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { OWNER, signIn } from "./helpers";
 
 test("research: find an obituary, extract with AI, accept, build the family, auto-advance", async ({ page }) => {

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, expectAccessible, test, type Page } from "./fixtures";
 import { OUTREACH_CASE_FILE } from "./global-setup";
 import { OWNER, signIn } from "./helpers";
 
@@ -38,6 +38,7 @@ test("owner drafts, reviews and approves a letter; it is sent and the case becom
     const checklist = page.getByRole("list", { name: "Compliance checklist" });
     await expect(checklist.getByText("Free-claim disclosure with the State's program name and website (verbatim)")).toBeVisible();
     await expect(page.getByText("Plain-text version")).toBeVisible();
+    await expectAccessible(page, "letter review");
 
     // The demo ships with unverified rules → the checklist is red and approval is blocked.
     const approve = page.getByRole("button", { name: "Approve and send letter" });

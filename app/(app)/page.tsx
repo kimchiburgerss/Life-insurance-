@@ -4,7 +4,7 @@ import { Alert, Badge, Card } from "@/components/ui";
 import { requireOperator } from "@/lib/auth/session";
 import { STAGES, stageLabel } from "@/lib/case/stateMachine";
 import { prisma } from "@/lib/db";
-import { addDays, formatDateOnly, todayIn } from "@/lib/dates";
+import { addDays, formatDateOnly, formatNevadaDate, todayIn } from "@/lib/dates";
 import { caseRef, formatUsd } from "@/lib/format";
 import { getBusinessProfile } from "@/lib/outreach/settings";
 
@@ -135,7 +135,7 @@ export default async function TodayPage() {
                   <Link href={`/cases/${d.caseId}`} className="underline">
                     {caseRef(d.case.caseNumber)} · {d.checklistKey.replaceAll("_", " ")} from {d.person.fullName}
                   </Link>{" "}
-                  <span className="text-slate-500">{d.createdAt.toISOString().slice(0, 10)}</span>
+                  <span className="text-slate-500">{formatNevadaDate(d.createdAt)}</span>
                 </li>
               ))}
             </ul>

@@ -18,7 +18,7 @@ import { aiMockMode, runPrompt } from "@/lib/ai/run";
 import { evaluateEligibility, transitionCase } from "@/lib/case/transitions";
 import { decryptPii, encryptPii } from "@/lib/crypto/pii";
 import { prisma, type DbClient } from "@/lib/db";
-import { todayIn, toDateOnly } from "@/lib/dates";
+import { dateInNevada, formatNevadaDate, toDateOnly, todayIn } from "@/lib/dates";
 import { caseRef } from "@/lib/format";
 import type { CommunicationChannel, Role } from "@/lib/generated/prisma/enums";
 import { notifyCase } from "@/lib/notifications";
@@ -216,7 +216,7 @@ async function compose(db: DbClient, args: ComposeArgs) {
       orderBy: { sentAt: "asc" },
     });
     if (!first?.sentAt) throw new OutreachError("A follow-up needs a first letter that was sent.");
-    firstLetterDate = formatLetterDate(toDateOnly(first.sentAt));
+    firstLetterDate = formatLetterDate(dateInNevada(first.sentAt));
   }
 
   const quotedFeeBps = args.existing?.quotedFeeBps ?? Math.min(settings.feeBps, feeCapBps ?? settings.feeBps);
@@ -535,7 +535,7 @@ export async function evaluateCommunication(db: DbClient, comm: CommRow): Promis
     if (!prev) sequence = { ok: false, detail: `Step ${step - 1} was not sent.` };
     else if (replies > 0) sequence = { ok: false, detail: "Someone replied on this case — follow-ups stop." };
     else if (prev.status === "RETURNED") sequence = { ok: false, detail: "The previous letter was returned as undeliverable." };
-    else sequence = { ok: true, detail: `Step ${step - 1} sent ${prev.sentAt?.toISOString().slice(0, 10)}; no reply yet.` };
+    else sequence = { ok: true, detail: `Step ${step - 1} sent ${formatNevadaDate(prev.sentAt)}; no reply yet.` };
   }
 
   const counselApproval = settings.counselApproval;

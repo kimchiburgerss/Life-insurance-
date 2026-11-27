@@ -19,7 +19,7 @@ import { aiMockMode } from "@/lib/ai/run";
 import { evaluateEligibility, transitionCase } from "@/lib/case/transitions";
 import { decryptPii } from "@/lib/crypto/pii";
 import { prisma, type DbClient } from "@/lib/db";
-import { toDateOnly, todayIn } from "@/lib/dates";
+import { dateInNevada, toDateOnly, todayIn } from "@/lib/dates";
 import { caseRef } from "@/lib/format";
 import type { Role } from "@/lib/generated/prisma/enums";
 import { notifyCase } from "@/lib/notifications";
@@ -360,7 +360,7 @@ export async function recordPaperSignature(actor: AgreementActor, id: string, in
   if (eligibility.status !== "ELIGIBLE" || signedOn < eligibility.eligibleContractDate) {
     throw new AgreementError("NRS 120A.740: an agreement signed before the end of the 24-month period is void. Check the date.");
   }
-  if (a.sentAt && signedOn < toDateOnly(a.sentAt)) throw new AgreementError("The signing date is before the agreement was sent.");
+  if (a.sentAt && signedOn < dateInNevada(a.sentAt)) throw new AgreementError("The signing date is before the agreement was sent.");
   await prisma.$transaction(async (tx) => {
     const file = await saveFile(tx, { caseId: a.caseId, kind: "PAPER_SIGNATURE", fileName: safeFileName(input.fileName, type.ext), contentType: type.contentType, bytes: input.bytes, uploadedBy: `USER:${actor.id}` });
     await tx.agreement.update({ where: { id }, data: { status: "SIGNED", signedAt: signedOn, signedFileKey: file.id } });

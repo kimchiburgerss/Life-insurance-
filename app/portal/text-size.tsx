@@ -19,9 +19,10 @@ export function TextSizeToggle() {
       type="button"
       onClick={() => apply(!large, setLarge)}
       aria-pressed={large}
-      className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-100"
+      className={`min-h-11 rounded-md border px-3 py-1.5 text-sm font-medium ${large ? "border-emerald-800 bg-emerald-800 text-white hover:bg-emerald-900" : "border-slate-300 bg-white text-slate-800 hover:bg-slate-100"}`}
     >
-      {large ? "Normal text size" : "Larger text"}
+      {/* A toggle keeps one name; its state is aria-pressed (and the filled style). */}
+      Larger text
     </button>
   );
 }

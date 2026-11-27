@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Alert, Badge, Card } from "@/components/ui";
+import { Alert, Badge, Card, ScrollRegion } from "@/components/ui";
 import { can } from "@/lib/auth/permissions";
 import { requireOperator } from "@/lib/auth/session";
 import { HEIR_CONFIDENCE_THRESHOLD, stageLabel } from "@/lib/case/stateMachine";
 import { previewTransitions } from "@/lib/case/transitions";
 import { prisma } from "@/lib/db";
-import { formatDateOnly } from "@/lib/dates";
+import { formatDateOnly, formatNevadaDate } from "@/lib/dates";
 import { caseRef, formatPct, formatUsd, scoreTone } from "@/lib/format";
 import { formatMicros } from "@/lib/ai/pricing";
 import { suggestIntestateHeirs } from "@/lib/research/intestate";
@@ -149,7 +149,7 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
           <Badge>{stageLabel(c.stage)}</Badge>
           <Badge tone={scoreTone(c.priorityScore)}>score {c.priorityScore ?? "—"}</Badge>
           <span className="text-slate-600">
-            {c.assignedUser ? `Assigned to ${c.assignedUser.name}` : "Unassigned"} · stage since {c.stageChangedAt.toISOString().slice(0, 10)}
+            {c.assignedUser ? `Assigned to ${c.assignedUser.name}` : "Unassigned"} · stage since {formatNevadaDate(c.stageChangedAt)}
           </span>
         </p>
       </div>
@@ -254,7 +254,7 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
               hasText: Boolean(e.rawText),
               extracted: Boolean(e.extractedFacts),
               pendingExtraction: pendingExtractions.some((r) => r.entityId === e.id),
-              addedAt: e.createdAt.toISOString().slice(0, 10),
+              addedAt: formatNevadaDate(e.createdAt),
             }))}
           />
         </div>
@@ -294,7 +294,7 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
           allPeople={persons.filter((p) => p.status !== "REJECTED").map((p) => ({ id: p.id, name: p.fullName }))}
           comms={comms.map((m) => ({
             id: m.id,
-            when: (m.sentAt ?? m.createdAt).toISOString().slice(0, 10),
+            when: formatNevadaDate(m.sentAt ?? m.createdAt),
             direction: m.direction,
             channel: m.channel,
             step: m.sequenceStep,
@@ -323,7 +323,7 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
             signer: signerOf(a).name,
             status: a.status,
             method: a.signatureMethod,
-            created: a.createdAt.toISOString().slice(0, 10),
+            created: formatNevadaDate(a.createdAt),
           }))}
         />
       </Card>
@@ -334,7 +334,7 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
           canWrite={canWrite}
           canStart={["AGREEMENT_SIGNED", "CLAIM_PACKET_PREPARED", "CLAIM_DENIED", "MORE_INFO_REQUESTED"].includes(c.stage)}
           signedHeirs={agreements.filter((a) => a.status === "SIGNED").map((a) => ({ id: a.personId!, name: signerOf(a).name }))}
-          packets={packets.map((p) => ({ id: p.id, claimant: p.person?.fullName ?? "?", status: p.status, created: p.createdAt.toISOString().slice(0, 10), claimNumber: p.stateClaimNumber }))}
+          packets={packets.map((p) => ({ id: p.id, claimant: p.person?.fullName ?? "?", status: p.status, created: formatNevadaDate(p.createdAt), claimNumber: p.stateClaimNumber }))}
         />
       </Card>
 
@@ -345,7 +345,7 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
           canRecord={["CLAIM_APPROVED", "PAID_TO_HEIR", "FEE_INVOICED", "FEE_COLLECTED"].includes(c.stage)}
           today={todayIn().toISOString().slice(0, 10)}
           agreements={agreements.filter((a) => a.status === "SIGNED").map((a) => ({ id: a.id, heir: signerOf(a).name, reference: agreementReference(a), hasInvoice: invoices.some((i) => i.agreementId === a.id && i.status !== "VOID") }))}
-          invoices={invoices.map((i) => ({ id: i.id, heir: i.person?.fullName ?? "?", amount: formatUsd(i.amountCents, { exact: true }), status: i.status, created: i.createdAt.toISOString().slice(0, 10) }))}
+          invoices={invoices.map((i) => ({ id: i.id, heir: i.person?.fullName ?? "?", amount: formatUsd(i.amountCents, { exact: true }), status: i.status, created: formatNevadaDate(i.createdAt) }))}
         />
       </Card>
 
@@ -359,7 +359,7 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
             fileName: docFiles.find((f) => f.id === d.fileId)?.fileName ?? "file",
             status: d.status,
             note: d.reviewNote,
-            uploaded: d.createdAt.toISOString().slice(0, 10),
+            uploaded: formatNevadaDate(d.createdAt),
             url: signedFileUrl(d.fileId, { ttlSeconds: 30 * 60 }),
           }))}
         />
@@ -377,7 +377,7 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
                 personId: p.id,
                 name: p.fullName,
                 access: acc
-                  ? { id: acc.id, url: portalUrl(decryptPii(acc.tokenEnc)), expires: acc.expiresAt.toISOString().slice(0, 10), lastUsed: acc.lastUsedAt?.toISOString().slice(0, 10) ?? null }
+                  ? { id: acc.id, url: portalUrl(decryptPii(acc.tokenEnc)), expires: formatNevadaDate(acc.expiresAt), lastUsed: formatNevadaDate(acc.lastUsedAt) ?? null }
                   : null,
               };
             })}
@@ -385,7 +385,7 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
       </Card>
 
       <Card title={`Properties (${c.properties.length})`}>
-        <div className="overflow-x-auto">
+        <ScrollRegion label="Properties">
           <table className="w-full text-left text-sm">
             <thead className="text-slate-600">
               <tr>
@@ -435,7 +435,7 @@ export default async function CasePage({ params }: PageProps<"/cases/[id]">) {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
         <p className="mt-3 text-xs text-slate-600">
           Claim packets and invoices are above.
         </p>

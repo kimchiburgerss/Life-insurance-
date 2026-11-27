@@ -16,7 +16,7 @@ import { can, ForbiddenError } from "@/lib/auth/permissions";
 import { transitionCase } from "@/lib/case/transitions";
 import { decryptPii } from "@/lib/crypto/pii";
 import { prisma, type DbClient } from "@/lib/db";
-import { formatDateOnly, toDateOnly, todayIn } from "@/lib/dates";
+import { formatDateOnly, formatNevadaDate, toDateOnly, todayIn } from "@/lib/dates";
 import { caseRef } from "@/lib/format";
 import type { CaseStage, Role } from "@/lib/generated/prisma/enums";
 import { notifyCase } from "@/lib/notifications";
@@ -86,7 +86,7 @@ export async function packetContext(db: DbClient, packetId: string) {
   const files = await db.storedFile.findMany({ where: { id: { in: heirDocs.map((d) => d.fileId) } }, select: { id: true, fileName: true, contentType: true } });
   const documents: DocRef[] = heirDocs.map((d) => {
     const f = files.find((x) => x.id === d.fileId);
-    return { documentId: d.id, key: d.checklistKey, fileId: d.fileId, fileName: f?.fileName ?? "file", contentType: f?.contentType ?? "application/octet-stream", status: d.status, uploadedAt: d.createdAt.toISOString().slice(0, 10) };
+    return { documentId: d.id, key: d.checklistKey, fileId: d.fileId, fileName: f?.fileName ?? "file", contentType: f?.contentType ?? "application/octet-stream", status: d.status, uploadedAt: formatNevadaDate(d.createdAt) };
   });
   const signed = await db.agreement.findFirst({ where: { caseId: c.id, personId: person.id, status: "SIGNED" }, orderBy: { signedAt: "desc" } });
   const decisions = (Array.isArray(packet.checklist) ? packet.checklist : []) as ItemDecision[];

@@ -6,6 +6,7 @@
  */
 import "server-only";
 import { z } from "zod";
+import { webUrl } from "@/lib/security/url";
 import { writeAudit } from "@/lib/audit";
 import { prisma, type DbClient } from "@/lib/db";
 import { getActiveRule } from "@/lib/rules/repository";
@@ -24,7 +25,7 @@ export type AttorneyTemplate = z.infer<typeof AttorneyTemplateSchema>;
 
 export const AgreementSettingsSchema = z.object({
   cancellationDays: z.number().int().min(3).max(60).default(10),
-  bookingUrl: z.string().url().or(z.literal("")).default(""),
+  bookingUrl: webUrl().or(z.literal("")).default(""),
   portalLinkDays: z.number().int().min(30).max(730).default(365),
   attorneyTemplate: AttorneyTemplateSchema.nullable().default(null),
   useAttorneyTemplate: z.boolean().default(false),

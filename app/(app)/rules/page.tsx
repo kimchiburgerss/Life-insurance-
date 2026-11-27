@@ -70,7 +70,7 @@ export default async function RulesPage() {
             ) : null}
             <dt className="text-slate-600">Parameters</dt>
             <dd>
-              <pre className="overflow-x-auto rounded bg-slate-50 p-2 text-xs">{JSON.stringify(rule.params, null, 2)}</pre>
+              <pre tabIndex={0} aria-label="Rule parameters" className="overflow-x-auto rounded bg-slate-50 p-2 text-xs focus-visible:outline-2 focus-visible:outline-sky-700">{JSON.stringify(rule.params, null, 2)}</pre>
             </dd>
           </dl>
           {canManage && rule.enabled ? (

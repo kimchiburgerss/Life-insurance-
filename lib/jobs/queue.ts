@@ -19,6 +19,8 @@ export const QUEUES = {
   followUps: "outreach-follow-ups",
   /** Daily: re-send unpaid online invoices at 7/14/30 days; flag unpaid manual ones. */
   invoiceReminders: "invoice-reminders",
+  /** Nightly: purge contact details and documents past their retention period. */
+  retention: "data-retention",
 } as const;
 
 const globalForBoss = globalThis as unknown as { boss?: Promise<PgBoss> };

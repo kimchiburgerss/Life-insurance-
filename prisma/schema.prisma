@@ -96,6 +96,18 @@ model Verification {
   @@map("verification")
 }
 
+/// TOTP codes already used to sign in or enrol, so a code can't be replayed
+/// within its validity window (ASVS 2.8.4). Rows are pruned after 5 minutes.
+model UsedTotpCode {
+  userId    String
+  codeHash  String
+  createdAt DateTime @default(now())
+
+  @@id([userId, codeHash])
+  @@index([createdAt])
+  @@map("used_totp_codes")
+}
+
 model TwoFactor {
   id                      String    @id
   secret                  String

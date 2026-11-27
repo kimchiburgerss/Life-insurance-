@@ -55,6 +55,26 @@ describe("operator authentication with mandatory TOTP", () => {
     expect(session?.user.role).toBe("RESEARCHER");
   });
 
+  it("a TOTP code works once: replaying it for another sign-in is refused; a wrong code doesn't burn the right one", async () => {
+    const { user, password, totpSecretBase32 } = await makeUser("OWNER");
+    const code = totp(totpSecretBase32!);
+    const signIn = async () => cookiesFrom(await post("/sign-in/email", { email: user.email, password }));
+
+    // A failed attempt with a wrong code first, then the right code still works.
+    const pending = await signIn();
+    expect((await post("/two-factor/verify-totp", { code: code === "000000" ? "111111" : "000000" }, pending)).status).toBeGreaterThanOrEqual(400);
+    expect((await post("/two-factor/verify-totp", { code }, pending)).status).toBe(200);
+
+    // The same code again, for a fresh sign-in, inside its validity window.
+    const replay = await post("/two-factor/verify-totp", { code }, await signIn());
+    expect(replay.status).toBe(401);
+    expect((await replay.json()).code).toBe("TOTP_CODE_REUSED");
+
+    // The next code is accepted.
+    const next = totp(totpSecretBase32!, Date.now() + 30_000);
+    expect((await post("/two-factor/verify-totp", { code: next }, await signIn())).status).toBe(200);
+  });
+
   it("rejects a wrong TOTP code", async () => {
     const { user, password } = await makeUser("OWNER");
     const first = await post("/sign-in/email", { email: user.email, password });

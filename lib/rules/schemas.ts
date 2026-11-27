@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { webUrl } from "@/lib/security/url";
 import type { RuleType } from "@/lib/generated/prisma/enums";
 
 /**
@@ -41,8 +42,8 @@ export type FeeCapParams = z.infer<typeof FeeCapParams>;
 
 export const DisclosureTextParams = z.object({
   programName: z.string().min(1),
-  claimWebsite: z.string().url(),
-  administratorWebsite: z.string().url(),
+  claimWebsite: webUrl(),
+  administratorWebsite: webUrl(),
   /** Short paragraph inserted into every first-contact letter, email and agreement. */
   text: z.string().min(1),
 });
@@ -96,7 +97,7 @@ export const ClaimRequirementsParams = z.object({
   smallEstateAffidavitMaxCents: z.number().int().min(0).optional(),
   smallEstateAffidavitSpouseMaxCents: z.number().int().min(0).optional(),
   /** Where claims are filed and documents sent. */
-  filing: z.object({ onlineUrl: z.string().url(), mailingAddress: z.array(z.string()).min(1) }).optional(),
+  filing: z.object({ onlineUrl: webUrl(), mailingAddress: z.array(z.string()).min(1) }).optional(),
 });
 export type ClaimRequirementsParams = z.infer<typeof ClaimRequirementsParams>;
 

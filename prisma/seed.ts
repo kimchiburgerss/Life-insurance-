@@ -22,8 +22,7 @@ import { hasDeceasedMarker, parseOwnerName } from "@/lib/normalize/name";
 import { createDraft, recordInbound } from "@/lib/outreach/service";
 import { ensurePortalAccess } from "@/lib/portal/access";
 import { getBusinessProfile, saveBusinessProfile } from "@/lib/outreach/settings";
-import { NEVADA_RULES, PLACEHOLDER_RULES } from "@/lib/rules/jurisdictions";
-import { parseDateOnly } from "@/lib/dates";
+import { ensureJurisdictionRules } from "@/lib/rules/seed";
 import { rescoreCases } from "@/lib/screening/service";
 
 export const DEMO_TOTP_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
@@ -45,27 +44,8 @@ const FICTIONAL_HOLDERS = [
 const NV_CITIES = ["Las Vegas", "Henderson", "Reno", "Sparks", "Carson City", "Elko", "Mesquite", "Boulder City"];
 
 async function seedRules() {
-  for (const rule of [...NEVADA_RULES, ...PLACEHOLDER_RULES]) {
-    await prisma.jurisdictionRule.upsert({
-      where: {
-        stateCode_ruleType_version: { stateCode: rule.stateCode, ruleType: rule.ruleType, version: rule.version },
-      },
-      // Never overwrite a rule the founder has edited/verified.
-      update: {},
-      create: {
-        stateCode: rule.stateCode,
-        ruleType: rule.ruleType,
-        version: rule.version,
-        params: rule.params,
-        effectiveFrom: parseDateOnly(rule.effectiveFrom),
-        enabled: rule.enabled,
-        sourceCitation: rule.sourceCitation,
-        sourceUrl: rule.sourceUrl,
-        notes: rule.notes,
-      },
-    });
-  }
-  console.log(`✓ ${NEVADA_RULES.length} Nevada rules + ${PLACEHOLDER_RULES.length} disabled placeholders`);
+  const r = await ensureJurisdictionRules(prisma);
+  console.log(`✓ ${r.nevada} Nevada rules + ${r.placeholders} disabled placeholders`);
 }
 
 type Plan = { stage: CaseStage | null; monthsAgoDelivered: [number, number]; unknownDate?: boolean; exactAmounts?: boolean };

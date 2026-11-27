@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { PDFDocument, StandardFonts } from "@cantoo/pdf-lib";
-import { expect, test } from "@playwright/test";
+import { expect, expectAccessible, test } from "./fixtures";
 import { CLAIM_CASE_FILE } from "./global-setup";
 import { OWNER, signIn } from "./helpers";
 
@@ -41,6 +41,7 @@ test("owner builds and files the claim, bills the fee after the State pays, the 
   await page.getByRole("button", { name: "Assemble packet PDF" }).click();
   await expect(page.getByText(/Assembled: \d+ pages\./)).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTitle("Claim packet PDF")).toBeVisible();
+  await expectAccessible(page, "claim packet (assembled)");
   await page.getByLabel(/I checked every page of this packet/).check();
   await page.getByRole("button", { name: "Approve packet" }).click();
   await expect(page.getByRole("heading", { name: "Record the filing" })).toBeVisible({ timeout: 30_000 });
@@ -59,6 +60,7 @@ test("owner builds and files the claim, bills the fee after the State pays, the 
   await page.getByLabel(/The amount, the recipient and the reminders/).check();
   await page.getByRole("button", { name: "Approve and send invoice" }).click();
   await expect(page.getByText(/^Sent \d{4}-\d{2}-\d{2} \(mock-payments\)/)).toBeVisible({ timeout: 30_000 });
+  await expectAccessible(page, "invoice (sent)");
 
   // The heir pays in the portal (demo stand-in for the online payment page).
   const heirContext = await browser.newContext();

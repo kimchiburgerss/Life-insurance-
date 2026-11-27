@@ -13,7 +13,7 @@ import { can, ForbiddenError } from "@/lib/auth/permissions";
 import { transitionCase } from "@/lib/case/transitions";
 import { decryptPii } from "@/lib/crypto/pii";
 import { prisma, type DbClient } from "@/lib/db";
-import { formatDateOnly, toDateOnly, todayIn } from "@/lib/dates";
+import { formatDateOnly, nevadaDateOf, toDateOnly, todayIn } from "@/lib/dates";
 import type { Role } from "@/lib/generated/prisma/enums";
 import { notifyCase } from "@/lib/notifications";
 import { agreementReference } from "@/lib/agreements/service";
@@ -58,7 +58,7 @@ export async function recordHeirPayment(actor: BillingActor, input: { agreementI
   if (!["CLAIM_APPROVED", "PAID_TO_HEIR", "FEE_INVOICED", "FEE_COLLECTED"].includes(a.case.stage)) throw new BillingError("Record the payment after the State approves the claim.");
   const paidOn = toDateOnly(input.paidOn);
   if (paidOn > todayIn()) throw new BillingError("The payment date can't be in the future.");
-  if (a.signedAt && paidOn < toDateOnly(a.signedAt)) throw new BillingError("The payment date is before the agreement was signed.");
+  if (a.signedAt && paidOn < nevadaDateOf(a.signedAt)) throw new BillingError("The payment date is before the agreement was signed.");
   if (await prisma.invoice.findFirst({ where: { agreementId: a.id, status: { not: "VOID" } } })) throw new BillingError("This agreement already has an invoice. Void it first if the amount was wrong.");
   const fee = feeOnPayment(input.amountPaidCents, a);
   if (fee <= 0) throw new BillingError("The fee on this amount is zero; nothing to invoice.");

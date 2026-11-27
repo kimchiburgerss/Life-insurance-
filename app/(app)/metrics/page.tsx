@@ -13,8 +13,10 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   return (
     <div>
       <dt className="text-sm text-slate-600">{label}</dt>
-      <dd className="text-2xl font-semibold tabular-nums">{value}</dd>
-      {hint ? <p className="text-xs text-slate-500">{hint}</p> : null}
+      <dd>
+        <span className="block text-2xl font-semibold tabular-nums">{value}</span>
+        {hint ? <span className="block text-xs text-slate-600">{hint}</span> : null}
+      </dd>
     </div>
   );
 }

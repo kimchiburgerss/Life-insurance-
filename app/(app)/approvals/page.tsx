@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Alert, Badge, Card } from "@/components/ui";
+import { Alert, Badge, Card, ScrollRegion } from "@/components/ui";
 import { requireOperator } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { caseRef } from "@/lib/format";
@@ -58,7 +58,7 @@ export default async function ApprovalsPage() {
         {waiting.length === 0 ? (
           <p className="text-sm text-slate-600">Nothing waiting. Draft letters from a case page once the case is ready for outreach.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <ScrollRegion label="Letters and emails waiting">
             <table className="w-full text-left text-sm">
               <thead className="text-slate-600">
                 <tr>
@@ -96,7 +96,7 @@ export default async function ApprovalsPage() {
                 })}
               </tbody>
             </table>
-          </div>
+          </ScrollRegion>
         )}
       </Card>
 

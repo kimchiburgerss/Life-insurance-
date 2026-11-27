@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Card } from "@/components/ui";
+import { Card, ScrollRegion } from "@/components/ui";
 import { requireOperator } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 
@@ -18,7 +18,7 @@ export default async function AuditPage() {
         </p>
       </div>
       <Card>
-        <div className="overflow-x-auto">
+        <ScrollRegion label="Audit log entries">
           <table className="w-full text-left text-sm">
             <thead className="text-slate-600">
               <tr>
@@ -52,7 +52,7 @@ export default async function AuditPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       </Card>
     </div>
   );

@@ -21,8 +21,11 @@
     "demo": "tsx scripts/demo.ts",
     "demo:totp": "tsx scripts/demo-totp.ts",
     "user:create": "tsx --conditions=react-server scripts/create-user.ts",
+    "user:remove": "tsx --conditions=react-server scripts/remove-user-access.ts",
     "postinstall": "prisma generate",
-    "cases:rescore": "tsx --conditions=react-server scripts/rescore.ts"
+    "cases:rescore": "tsx --conditions=react-server scripts/rescore.ts",
+    "retention": "tsx --conditions=react-server scripts/retention.ts",
+    "keys:rotate": "tsx --conditions=react-server scripts/rotate-pii-key.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.14.0",
@@ -44,6 +47,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@faker-js/faker": "10.6.0",
     "@playwright/test": "1.63.0",
     "@tailwindcss/turbopack": "4.3.3",

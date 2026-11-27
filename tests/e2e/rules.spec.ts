@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { OWNER, signIn } from "./helpers";
 
 test("owner verifies a jurisdiction rule; the change is in the audit log", async ({ page }) => {

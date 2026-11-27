@@ -66,3 +66,15 @@ export function Badge({ children, tone = "neutral" }: { children: ReactNode; ton
   }[tone];
   return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${styles}`}>{children}</span>;
 }
+
+/**
+ * A horizontally scrolling area (wide tables). Keyboard users can focus it and
+ * scroll with the arrow keys; screen readers announce its label (WCAG 2.1.1).
+ */
+export function ScrollRegion({ label, children, className = "" }: { label: string; children: ReactNode; className?: string }) {
+  return (
+    <div role="region" aria-label={label} tabIndex={0} className={`overflow-x-auto rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-700 ${className}`}>
+      {children}
+    </div>
+  );
+}

@@ -5,7 +5,7 @@ import { Alert, Badge, Card } from "@/components/ui";
 import { can } from "@/lib/auth/permissions";
 import { requireOperator } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
-import { formatDateOnly, todayIn } from "@/lib/dates";
+import { formatDateOnly, formatNevadaDate, todayIn } from "@/lib/dates";
 import { caseRef, formatUsd } from "@/lib/format";
 import { formatBps } from "@/lib/rules/engine";
 import { invoiceHash, recipientFor } from "@/lib/billing/service";
@@ -40,8 +40,8 @@ export default async function InvoicePage({ params }: PageProps<"/invoices/[id]"
         </p>
       </div>
       {inv.status === "DRAFT" && inv.approvalId ? <Alert>Approved but not sent yet. {events.at(-1)?.type === "send_failed" ? events.at(-1)?.detail : ""}</Alert> : null}
-      {inv.status === "OPEN" ? <Alert tone="info">Sent {inv.issuedAt?.toISOString().slice(0, 10)} ({inv.provider}); due {inv.dueDate ? formatDateOnly(inv.dueDate) : "?"}.{inv.paymentLinkUrl ? <> <a href={inv.paymentLinkUrl} className="underline" rel="noopener noreferrer">Payment page</a></> : null}</Alert> : null}
-      {inv.status === "PAID" ? <Alert tone="info">Paid {inv.paidAt?.toISOString().slice(0, 10)}. Thank you!</Alert> : null}
+      {inv.status === "OPEN" ? <Alert tone="info">Sent {formatNevadaDate(inv.issuedAt)} ({inv.provider}); due {inv.dueDate ? formatDateOnly(inv.dueDate) : "?"}.{inv.paymentLinkUrl ? <> <a href={inv.paymentLinkUrl} className="underline" rel="noopener noreferrer">Payment page</a></> : null}</Alert> : null}
+      {inv.status === "PAID" ? <Alert tone="info">Paid {formatNevadaDate(inv.paidAt)}. Thank you!</Alert> : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="How the fee was worked out">

@@ -15,7 +15,7 @@ import { writeAudit } from "@/lib/audit";
 import { can, ForbiddenError } from "@/lib/auth/permissions";
 import { evaluateEligibility, transitionCase } from "@/lib/case/transitions";
 import { prisma } from "@/lib/db";
-import { toDateOnly, todayIn } from "@/lib/dates";
+import { dateInNevada, todayIn } from "@/lib/dates";
 import type { Role } from "@/lib/generated/prisma/enums";
 import { notifyCase } from "@/lib/notifications";
 import { readFile, saveFile } from "@/lib/files/storage";
@@ -146,7 +146,7 @@ export async function applyESignEvent(ev: ESignEvent): Promise<{ handled: boolea
   const withEvent = appendEvent(a.events, { type: ev.type.toLowerCase(), detail: ev.detail, eventId: ev.eventId });
 
   if ((ev.type === "ALL_SIGNED" || ev.type === "DOWNLOADABLE") && a.status === "SENT") {
-    const signedOn = toDateOnly(ev.occurredAt);
+    const signedOn = dateInNevada(ev.occurredAt); // the void period is counted in Nevada days
     const { eligibility } = await evaluateEligibility(prisma, a.caseId, todayIn());
     if (eligibility.status !== "ELIGIBLE" || signedOn < eligibility.eligibleContractDate) {
       // Cannot happen if sending was gated, but never treat a void signature as valid.

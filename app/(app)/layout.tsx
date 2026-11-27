@@ -37,9 +37,16 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             <Link href="/review" className="hover:underline">
               Review queue
             </Link>
-            <Link href="/approvals" className="hover:underline" aria-label={`Approvals, ${approvalsWaiting} waiting`}>
+            {/* The count is visible text, so the link's name ("Approvals 2 waiting") contains what is shown (WCAG 2.5.3). */}
+            <Link href="/approvals" className="hover:underline">
               Approvals
-              {approvalsWaiting > 0 ? <span className="ml-1 rounded-full bg-amber-600 px-1.5 text-xs text-white">{approvalsWaiting}</span> : null}
+              {approvalsWaiting > 0 ? (
+                <span className="ml-1 rounded-full bg-amber-800 px-1.5 text-xs text-white">
+                  {" "}
+                  {approvalsWaiting}
+                  <span className="sr-only"> waiting</span>
+                </span>
+              ) : null}
             </Link>
             <Link href="/calendar" className="hover:underline">
               Calendar
@@ -67,8 +74,15 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           </nav>
           <div className="ml-auto flex items-center gap-3 text-sm">
             {mock ? <Badge tone="warn">Mock mode</Badge> : null}
-            <Link href="/notifications" className="hover:underline" aria-label={`Notifications, ${unread} unread`}>
-              Notifications{unread > 0 ? <span className="ml-1 rounded-full bg-red-700 px-1.5 text-xs text-white">{unread}</span> : null}
+            <Link href="/notifications" className="hover:underline">
+              Notifications
+              {unread > 0 ? (
+                <span className="ml-1 rounded-full bg-red-700 px-1.5 text-xs text-white">
+                  {" "}
+                  {unread}
+                  <span className="sr-only"> unread</span>
+                </span>
+              ) : null}
             </Link>
             <span>
               {operator.name} <span className="text-slate-500">({operator.role.toLowerCase()})</span>

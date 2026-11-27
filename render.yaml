@@ -1,0 +1,64 @@
+# Render Blueprint for Heir Finder — see DEPLOYMENT.md before using it.
+# One Docker web service (one instance: the background-job worker runs inside
+# it) and one managed Postgres database. Secrets marked `sync: false` are asked
+# for in the Render dashboard when you apply the Blueprint; they never live here.
+# Field names follow Render's Blueprint reference (render.com/docs/blueprint-spec);
+# check plan names there, they change from time to time.
+services:
+  - type: web
+    name: heir-finder
+    runtime: docker
+    plan: starter
+    region: oregon
+    numInstances: 1
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    # Apply database migrations before the new version starts.
+    preDeployCommand: sh /app/migrate.sh
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: heir-finder-db
+          property: connectionString
+      - key: MOCK_MODE
+        value: "true" # switch to "false" only after the pre-launch checklist (OPERATIONS.md)
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      - key: BETTER_AUTH_URL # https://your-domain (no trailing slash)
+        sync: false
+      - key: PUBLIC_APP_URL # same as BETTER_AUTH_URL
+        sync: false
+      - key: PII_ENCRYPTION_KEY # openssl rand -base64 32 — back it up offline
+        sync: false
+      - key: PII_HMAC_KEY # openssl rand -base64 32 (a different value) — back it up offline
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: LOB_API_KEY
+        sync: false
+      - key: LOB_WEBHOOK_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: DROPBOX_SIGN_API_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+
+databases:
+  - name: heir-finder-db
+    databaseName: heirfinder
+    user: heirfinder
+    region: oregon
+    postgresMajorVersion: "17"
+    plan: basic-256mb # a paid plan: point-in-time recovery needs one
+    ipAllowList: [] # reachable only from your Render services, not the internet

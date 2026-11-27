@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, expectAccessible, test, type Page } from "./fixtures";
 import { AGREEMENT_CASE_FILE } from "./global-setup";
 import { OWNER, signIn } from "./helpers";
 
@@ -38,6 +38,7 @@ test("owner prepares and approves an agreement; the heir signs it and uploads a 
     const checks = page.getByRole("list", { name: "Agreement checks" });
     await expect(checks.getByText("Fee within the legal cap")).toBeVisible();
     await expect(checks.getByText("Signed after the 24-month void period (NRS 120A.740)")).toBeVisible();
+    await expectAccessible(page, "agreement review");
 
     // Approve this exact PDF for electronic signature.
     await page.getByLabel(/I have read this whole agreement/).check();
@@ -53,6 +54,7 @@ test("owner prepares and approves an agreement; the heir signs it and uploads a 
     await expect(heir.getByRole("heading", { name: `Hello ${fx.heirName.split(" ")[0]}` })).toBeVisible();
     await expect(heir.getByRole("heading", { name: "You can claim this yourself, for free" })).toBeVisible();
     await expect(heir.getByRole("link", { name: "Read the agreement (PDF)" })).toBeVisible();
+    await expectAccessible(heir, "heir portal with an agreement to sign");
 
     // Upload a document for the claim checklist.
     await heir.getByLabel("Which document is this?").selectOption("death_certificate");
